@@ -1,0 +1,18 @@
+[package]
+name = "article-server-rs"
+version = "1.0.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+html5ever = "0.25"
+r2d2 = "0.8"
+r2d2_sqlite = "0.19"
+reqwest = "0.11"
+rusqlite = "0.26"
+rusqlite_migration = "0.5"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+warp = "0.3"
+kuchiki = "0.8"
