@@ -87,15 +87,14 @@ async fn fetch_handler(db_pool: r2d2::Pool<SqliteConnectionManager>,
     }
 }
 
-fn migrate_db(db_url: &str) -> Result<(), rusqlite_migration::Error> {
-    let mut conn = rusqlite::Connection::open(db_url)?;
+fn migrate_db(conn: &mut rusqlite::Connection) -> Result<(), rusqlite_migration::Error> {
     let migrations = rusqlite_migration::Migrations::new(vec![
         rusqlite_migration::M::up("
             CREATE TABLE webpages(url TEXT NOT NULL, text TEXT NOT NULL, html TEXT NOT NULL);
             CREATE INDEX webpage_url_idx ON webpages(url);
         ")
     ]);
-    migrations.to_latest(&mut conn)
+    migrations.to_latest(conn)
 }
 
 fn traverse_document(html: &str) -> String {
@@ -189,7 +188,9 @@ async fn main() {
     let db_url = args.value_of("database-path")
         .expect("Unable to get database-path argument");
     let manager = SqliteConnectionManager::file(db_url);
-    migrate_db(db_url).expect("Unable to migrate database schema");
+    let mut db_conn = rusqlite::Connection::open(db_url)
+        .expect(&format!("Unable to open database connection to {}", db_url));
+    migrate_db(&mut db_conn).expect("Unable to migrate database schema");
     let pool_ = r2d2::Pool::new(manager).expect("Unable to get database connection pool");
     let pool = warp::any().map(move|| pool_.clone());
     let http_client = warp::any().map(move|| reqwest::Client::new());
