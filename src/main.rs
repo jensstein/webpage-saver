@@ -1,3 +1,4 @@
+use clap::{App,Arg,ArgMatches};
 use html5ever::tendril::TendrilSink;
 use r2d2_sqlite::SqliteConnectionManager;
 use serde::Deserialize;
@@ -157,10 +158,36 @@ fn attributes_to_string(attributes: &kuchiki::Attributes) -> String {
     string_builder.join(" ")
 }
 
+fn validate_int_arg(v: String) -> Result<(), String> {
+    match v.parse::<u16>() {
+        Ok(_) => Ok(()),
+        Err(error) => Err(format!("Error parsing {} as u16: {}", v, error.to_string()))
+    }
+}
+
+fn setup_args() -> ArgMatches<'static> {
+    App::new("article-server")
+        .arg(Arg::with_name("port")
+            .short("-p")
+            .long("--port")
+            .help("Port to start service on")
+            .validator(validate_int_arg)
+            .default_value("5000"))
+        .arg(Arg::with_name("database-path")
+            .long("--db-path")
+            .help("Path to the database to store webpages in")
+            .default_value("webpages.db")
+        )
+    .get_matches()
+}
+
 #[tokio::main]
 async fn main() {
-    println!("Hello, world!");
-    let db_url = "file.db";
+    let args = setup_args();
+    let port = args.value_of("port").expect("Unable to get port argument")
+        .parse::<u16>().expect("Unable to parse port argument");
+    let db_url = args.value_of("database-path")
+        .expect("Unable to get database-path argument");
     let manager = SqliteConnectionManager::file(db_url);
     migrate_db(db_url).expect("Unable to migrate database schema");
     let pool_ = r2d2::Pool::new(manager).expect("Unable to get database connection pool");
@@ -175,7 +202,7 @@ async fn main() {
         .or(
             warp::get().and(warp::path("status")).map(|| "OK")
     );
-    warp::serve(routes).run(([127, 0, 0, 1], 6000)).await;
+    warp::serve(routes).run(([127, 0, 0, 1], port)).await;
 }
 
 #[cfg(test)]
