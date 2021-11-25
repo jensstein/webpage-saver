@@ -1,6 +1,7 @@
 use super::*;
 
-use rusqlite::Connection;
+use sqlx::sqlite::SqlitePool;
+use sqlx::Row;
 
 #[derive(Debug)]
 struct DBRow {
@@ -22,22 +23,23 @@ fn test_traverse_document() {
     assert_eq!(result, "<title > HUR </title> <h1 > overskrift </h1> <h2 > underoverskrift med <a href=link1> link </a> </h2> <p > tekst 1 </p> <p > tekst med <a href=link2> link </a> og tekst </p> <p id=10> tekst med <span id=20> tekst inde i <span id=30> tekst </span> </span> </p>");
 }
 
-#[test]
-fn test_database_migration() {
-    let mut conn = Connection::open_in_memory()
+#[tokio::test]
+async fn test_database_migration() {
+    let conn = SqlitePool::connect("sqlite::memory:").await
         .expect("Unable to open database in memory");
-    migrate_db(&mut conn).expect("Unable to migrate database");
-    conn.execute("INSERT INTO webpages VALUES('url', 'text', 'html')", [])
-        .expect("Unable to insert into database");
-    let mut sql = conn.prepare("SELECT * FROM webpages")
-        .expect("Unable to prepare sql statement");
-    let rows = sql.query_map([], |row| Ok(DBRow {
-        url: row.get(0).expect("Unable to get column 0 of row"),
-        text: row.get(1).expect("Unable to get column 1 of row"),
-        html: row.get(2).expect("Unable to get column 2 of row")
-    })).expect("Unable to get rows from database")
-        .map(|row| row.expect("Unable to fetch all columns of row"))
-        .collect::<Vec<DBRow>>();
+    migrate_db("db/migrations", &conn).await.expect("Unable to migrate database");
+    sqlx::query("INSERT INTO webpages VALUES('url', 'text', 'html')")
+        .execute(&conn)
+        .await.expect("Unable to insert into database");
+    let rows = sqlx::query("SELECT * FROM webpages")
+        .map(|row: sqlx::sqlite::SqliteRow| {
+            DBRow {
+                url: row.get(0),
+                text: row.get(1),
+                html: row.get(2)
+            }
+        })
+        .fetch_all(&conn).await.expect("Error fetching rows from database");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0], DBRow{url: "url".to_string(),
         text: "text".to_string(), html: "html".to_string()});

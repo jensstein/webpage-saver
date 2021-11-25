@@ -1,7 +1,11 @@
+use std::path::Path;
+use std::str::FromStr;
+
 use clap::{App,Arg,ArgMatches};
 use html5ever::tendril::TendrilSink;
-use r2d2_sqlite::SqliteConnectionManager;
 use serde::Deserialize;
+use sqlx::ConnectOptions;
+use sqlx::sqlite::{SqliteConnectOptions,SqlitePool};
 use warp::Filter;
 use warp::http::{StatusCode,Response};
 
@@ -50,25 +54,27 @@ async fn fetch_webpage(http_client: reqwest::Client, url: &str) -> Result<String
     }
 }
 
-fn write_to_db(conn: r2d2::PooledConnection<SqliteConnectionManager>, url: &str, text: &str, html: &str) {
-    let result = conn.execute("INSERT INTO webpages(url, text, html) VALUES (?1, ?2, ?3)", rusqlite::params![url, text, html]);
+async fn write_to_db(conn: SqlitePool, url: &str, text: &str, html: &str) -> Result<(), sqlx::Error> {
+    let result = sqlx::query("INSERT INTO webpages(url, text, html) VALUES (?1, ?2, ?3)")
+        .bind(url)
+        .bind(text)
+        .bind(html)
+        .execute(&conn).await?;
     println!("ASD {} {:?}", url, result);
+    Ok(())
 }
 
-async fn fetch_handler(db_pool: r2d2::Pool<SqliteConnectionManager>,
+async fn fetch_handler(db_pool: SqlitePool,
         http_client: reqwest::Client, body: FetchWebpage) ->
         Result<impl warp::Reply, warp::Rejection> {
     match fetch_webpage(http_client, &body.url).await {
         Ok(html) => {
-            match db_pool.get() {
-                Ok(conn) => {
-                    let text = traverse_document(&html);
-                    write_to_db(conn, &body.url, &text, &html);
-                    // Return-typen bestemmes af Responsens body, så hvis den er String det ene sted,
-                    // skal den også være String det andet. Og den er nødt til at være String i
-                    // Err-delen, fordi man ikke kan sende en reference til error ud af funktionen.
-                    return Ok(Response::builder().status(StatusCode::OK).body("".to_string()));
-                },
+            let text = traverse_document(&html);
+            match write_to_db(db_pool, &body.url, &text, &html).await {
+                // Return-typen bestemmes af Responsens body, så hvis den er String det ene sted,
+                // skal den også være String det andet. Og den er nødt til at være String i
+                // Err-delen, fordi man ikke kan sende en reference til error ud af funktionen.
+                Ok(_) => return Ok(Response::builder().status(StatusCode::OK).body("".to_string())),
                 Err(error) => {
                     eprintln!("Error getting database connection: {}", error.to_string());
                     return Ok(Response::builder()
@@ -87,14 +93,13 @@ async fn fetch_handler(db_pool: r2d2::Pool<SqliteConnectionManager>,
     }
 }
 
-fn migrate_db(conn: &mut rusqlite::Connection) -> Result<(), rusqlite_migration::Error> {
-    let migrations = rusqlite_migration::Migrations::new(vec![
-        rusqlite_migration::M::up("
-            CREATE TABLE webpages(url TEXT NOT NULL, text TEXT NOT NULL, html TEXT NOT NULL);
-            CREATE INDEX webpage_url_idx ON webpages(url);
-        ")
-    ]);
-    migrations.to_latest(conn)
+async fn migrate_db(migrations_path: &str, conn: &SqlitePool) -> Result<(), sqlx::Error> {
+    // The migration files must be called {VERSION}_{DESCRIPTION}.sql
+    // https://docs.rs/sqlx-core/0.5.9/src/sqlx_core/migrate/source.rs.html#10-12
+    let migrator = sqlx::migrate::Migrator::new(
+        Path::new(migrations_path)).await?;
+    migrator.run(conn).await.expect("Error running migrations");
+    Ok(())
 }
 
 fn traverse_document(html: &str) -> String {
@@ -175,9 +180,16 @@ fn setup_args() -> ArgMatches<'static> {
         .arg(Arg::with_name("database-path")
             .long("--db-path")
             .help("Path to the database to store webpages in")
-            .default_value("webpages.db")
-        )
+            .default_value("webpages.db"))
     .get_matches()
+}
+
+async fn create_sqlite_db(db_url: &str) -> Result<(), sqlx::Error> {
+    SqliteConnectOptions::from_str(db_url)?
+        .create_if_missing(true)
+        .connect()
+        .await?;
+    Ok(())
 }
 
 #[tokio::main]
@@ -187,11 +199,9 @@ async fn main() {
         .parse::<u16>().expect("Unable to parse port argument");
     let db_url = args.value_of("database-path")
         .expect("Unable to get database-path argument");
-    let manager = SqliteConnectionManager::file(db_url);
-    let mut db_conn = rusqlite::Connection::open(db_url)
-        .expect(&format!("Unable to open database connection to {}", db_url));
-    migrate_db(&mut db_conn).expect("Unable to migrate database schema");
-    let pool_ = r2d2::Pool::new(manager).expect("Unable to get database connection pool");
+    create_sqlite_db(db_url).await.expect("Error creating database file");
+    let pool_ = SqlitePool::connect(db_url).await.expect("Unable to get database connection pool");
+    migrate_db("db/migrations", &pool_).await.expect("Unable to migrate database");
     let pool = warp::any().map(move|| pool_.clone());
     let http_client = warp::any().map(move|| reqwest::Client::new());
     let routes = warp::post()
