@@ -6,9 +6,14 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+argon2 = "0.3"
+base64 = "0.13"
 clap = "2.33"
 html5ever = "0.25"
 kuchiki = "0.8"
+lazy_static = "1.4.0"
+rand = "0.8"
+regex = "1"
 reqwest = "0.11"
 serde = { version = "1", features = ["derive"] }
 sqlx = {version = "0.5", features = ["runtime-tokio-rustls", "sqlite", "migrate"]}

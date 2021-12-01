@@ -1,3 +1,5 @@
+mod auth;
+
 use std::path::Path;
 use std::str::FromStr;
 
@@ -54,23 +56,63 @@ async fn fetch_webpage(http_client: reqwest::Client, url: &str) -> Result<String
     }
 }
 
-async fn write_to_db(conn: SqlitePool, url: &str, text: &str, html: &str) -> Result<(), sqlx::Error> {
-    let result = sqlx::query("INSERT INTO webpages(url, text, html) VALUES (?1, ?2, ?3)")
+async fn write_to_db(conn: SqlitePool, url: &str, text: &str, html: &str, user_id: i64) ->
+        Result<(), sqlx::Error> {
+    let result = sqlx::query("INSERT INTO webpages(url, text, html, user_id) VALUES (?1, ?2, ?3, ?4)")
         .bind(url)
         .bind(text)
         .bind(html)
+        .bind(user_id)
         .execute(&conn).await?;
     println!("ASD {} {:?}", url, result);
     Ok(())
 }
 
+async fn get_user_id_from_auth_header(db_pool: &SqlitePool, auth_header: String) ->
+        Result<i64, Result<warp::http::Response<std::string::String>, warp::http::Error>> {
+    let decoded_user = match auth::decode_basic_auth_header(&auth_header) {
+        Ok(decoded_user) => decoded_user,
+        Err(error) => {
+            eprintln!("Error decoding header {}: {}", auth_header, error);
+            return Err(Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .body("".to_string())
+            );
+        }
+    };
+    let user_id = match auth::verify_password_from_database(&db_pool, &decoded_user.username, &decoded_user.password).await {
+        Ok(user_id) => user_id,
+        Err(error) => {
+            eprintln!("Error verifying user {:?}: {}", decoded_user, error);
+            return Err(Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .body("".to_string())
+            );
+        }
+    };
+    user_id.map_or_else(|| {
+        return Err(Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .body("".to_string())
+        );
+    }, |user_id| { Ok(user_id)})
+}
+
 async fn fetch_handler(db_pool: SqlitePool,
-        http_client: reqwest::Client, body: FetchWebpage) ->
+        http_client: reqwest::Client, body: FetchWebpage, auth_header: String) ->
         Result<impl warp::Reply, warp::Rejection> {
+
+    let user_id = match get_user_id_from_auth_header(&db_pool, auth_header).await {
+        Ok(user_id) => user_id,
+        Err(error) => {
+            return Ok(error);
+        }
+    };
+
     match fetch_webpage(http_client, &body.url).await {
         Ok(html) => {
             let text = traverse_document(&html);
-            match write_to_db(db_pool, &body.url, &text, &html).await {
+            match write_to_db(db_pool, &body.url, &text, &html, user_id).await {
                 // Return-typen bestemmes af Responsens body, så hvis den er String det ene sted,
                 // skal den også være String det andet. Og den er nødt til at være String i
                 // Err-delen, fordi man ikke kan sende en reference til error ud af funktionen.
@@ -204,15 +246,32 @@ async fn main() {
     migrate_db("db/migrations", &pool_).await.expect("Unable to migrate database");
     let pool = warp::any().map(move|| pool_.clone());
     let http_client = warp::any().map(move|| reqwest::Client::new());
+    let auth_header = warp::any().and(warp::header::<String>("Authorization"))
+        .map(|token: String| {
+            if token.to_lowercase().contains("basic ") {
+                return token[6..].to_string()
+            }
+            token
+        });
     let routes = warp::post()
             .and(warp::path("fetch"))
-            .and(pool)
+            .and(pool.clone())
             .and(http_client)
             .and(warp::body::json())
+            .and(auth_header)
             .and_then(fetch_handler)
         .or(
-            warp::get().and(warp::path("status")).map(|| "OK")
-    );
+            warp::get().and(warp::path("status")).map(|| "OK"))
+        .or(warp::post()
+            .and(warp::path("register"))
+            .and(pool.clone())
+            .and(warp::body::json())
+            .and_then(auth::register_handler))
+        .or(warp::post()
+            .and(warp::path("verify-user"))
+            .and(pool.clone())
+            .and(warp::body::json())
+            .and_then(auth::verify_user_handler));
     warp::serve(routes).run(([127, 0, 0, 1], port)).await;
 }
 
