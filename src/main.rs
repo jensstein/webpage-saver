@@ -253,7 +253,7 @@ async fn main() {
             }
             token
         });
-    let routes = warp::post()
+    let api_routes = warp::post()
             .and(warp::path("fetch"))
             .and(pool.clone())
             .and(http_client)
@@ -272,6 +272,7 @@ async fn main() {
             .and(pool.clone())
             .and(warp::body::json())
             .and_then(auth::verify_user_handler));
+    let routes = warp::path("api").and(api_routes);
     warp::serve(routes).run(([127, 0, 0, 1], port)).await;
 }
 
