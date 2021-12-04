@@ -2,9 +2,12 @@ use argon2::password_hash::{PasswordHash,SaltString};
 use argon2::{Argon2,PasswordHasher,PasswordVerifier};
 use sqlx::sqlite::SqlitePool;
 use serde::Deserialize;
+use serde::Serialize;
 use warp::http::{StatusCode,Response};
 
 // https://www.lpalmieri.com/posts/password-authentication-in-rust/
+
+// JWT authorization: https://blog.logrocket.com/jwt-authentication-in-rust/
 
 #[derive(Debug,Clone)]
 pub struct AuthError {
@@ -14,6 +17,29 @@ pub struct AuthError {
 impl std::fmt::Display for AuthError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "{}", self.message)
+    }
+}
+
+#[derive(Debug,Clone)]
+struct AuthConfigError {
+    message: String
+}
+
+impl std::fmt::Display for AuthConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl From<jsonwebtoken::errors::Error> for AuthConfigError {
+    fn from(error: jsonwebtoken::errors::Error) -> Self {
+        AuthConfigError {message: error.to_string()}
+    }
+}
+
+impl From<std::env::VarError> for AuthConfigError {
+    fn from(error: std::env::VarError) -> Self {
+        AuthConfigError {message: error.to_string()}
     }
 }
 
@@ -143,15 +169,45 @@ pub async fn verify_user_handler(db_pool: SqlitePool, body: User) ->
                     .body("".to_string()))
                 }, |verified_user_id| {
                         if verified_user_id.is_some() {
-                            return Ok(Response::builder()
-                                .status(StatusCode::OK)
-                                .body("OK".to_string()))
+                            match create_jwt(&body.username, 60) {
+                                Ok(jwt) => Ok(Response::builder()
+                                    .status(StatusCode::OK)
+                                    .body(jwt)),
+                                Err(error) => {
+                                    eprintln!("Error when creating jwt for user {}: {}", &body.username, error);
+                                    Ok(Response::builder()
+                                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                        .body("".to_string()))
+                                }
+                            }
                         } else {
                             return Ok(Response::builder()
                                 .status(StatusCode::UNAUTHORIZED)
                                 .body("Password doesn't match".to_string()))
                         }
                 })
+}
+
+// The naming of these fields is significant: https://github.com/Keats/jsonwebtoken#validation
+#[derive(Debug,Deserialize,Serialize)]
+struct Claims {
+    sub: String,
+    exp: usize,
+}
+
+fn create_jwt(username: &str, expiration_in_seconds: i64) -> Result<String, AuthConfigError> {
+    let experiation = chrono::Utc::now()
+        .checked_add_signed(chrono::Duration::seconds(expiration_in_seconds))
+            .ok_or_else(|| AuthConfigError {
+                message: format!("Error adding {} seconds to the current time", expiration_in_seconds)
+            })?
+        .timestamp() as usize;
+    let claims = Claims {sub: username.to_string(), exp: experiation};
+    let secret = std::env::var("JWT_SECRET_KEY")?;
+    Ok(jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS512),
+        &claims, &jsonwebtoken::EncodingKey::from_secret(secret.as_ref())
+    )?)
 }
 
 fn hash_password(password: &str) -> Result<String, argon2::password_hash::Error> {
@@ -208,5 +264,24 @@ mod tests {
     fn test_validate_username_chars_fails() {
         assert_eq!(validate_username_chars(" username; drop table users"),
             false);
+    }
+
+    #[test]
+    fn test_create_jwt() {
+        let mut env_set = false;
+        if let None = std::env::var_os("JWT_SECRET_KEY") {
+            std::env::set_var("JWT_SECRET_KEY", "secret");
+            env_set = true;
+        }
+        let secret = std::env::var("JWT_SECRET_KEY").expect("JWT secret not set");
+        let jwt = create_jwt("username", 60).expect("Unable to create jwt");
+        if env_set {
+            std::env::remove_var("JWT_SECRET_KEY");
+        }
+        let decoded = jsonwebtoken::decode::<Claims>(&jwt,
+            &jsonwebtoken::DecodingKey::from_secret(secret.as_ref()),
+            &jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS512))
+            .expect("Unable to decode jwt");
+        assert_eq!("username", decoded.claims.sub);
     }
 }
