@@ -1,5 +1,6 @@
 use argon2::password_hash::{PasswordHash,SaltString};
 use argon2::{Argon2,PasswordHasher,PasswordVerifier};
+use rand::Rng;
 use sqlx::sqlite::SqlitePool;
 use serde::Deserialize;
 use serde::Serialize;
@@ -86,6 +87,35 @@ fn validate_username_chars(username: &str) -> bool {
     !RE.is_match(username)
 }
 
+// https://rust-lang-nursery.github.io/rust-cookbook/algorithms/randomness.html#create-random-passwords-from-a-set-of-user-defined-characters
+fn generate_random_string() -> Vec<u8> {
+    let charset: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+        abcdefghijklmnopqrstuvwxyz\
+        0123456789)(*&^%$#@!~";
+    let mut rng = rand::thread_rng();
+    (0..50).map(|_| {
+        let idx = rng.gen_range(0..charset.len());
+        charset[idx]
+    })
+    .collect()
+}
+
+async fn store_new_user_with_jwt_secret(db_pool: SqlitePool, username: &str, hashed_password: &str)
+        -> Result<(), sqlx::Error> {
+    let mut transaction = db_pool.begin().await?;
+    let inserted_row = sqlx::query("INSERT INTO users(username, password_hash) VALUES($1, $2)")
+        .bind(username)
+        .bind(hashed_password)
+        .execute(&mut transaction).await?;
+    let generated_jwt_secret = generate_random_string();
+    sqlx::query("INSERT INTO jwt_secrets(secret, user_id) VALUES($1, $2)")
+        .bind(generated_jwt_secret)
+        .bind(inserted_row.last_insert_rowid())
+        .execute(&mut transaction).await?;
+    transaction.commit().await?;
+    Ok(())
+}
+
 pub async fn register_handler(db_pool: SqlitePool, body: User) ->
         Result<impl warp::Reply, warp::Rejection> {
     if !validate_password_chars(&body.password) {
@@ -110,16 +140,15 @@ pub async fn register_handler(db_pool: SqlitePool, body: User) ->
             )
         }
     };
-    match sqlx::query("INSERT INTO users(username, password_hash) VALUES($1, $2)")
-            .bind(&body.username)
-            .bind(&hashed_password)
-            .execute(&db_pool).await {
-        Ok(_) => return Ok(Response::builder().status(StatusCode::CREATED).body("".to_string())),
+    match store_new_user_with_jwt_secret(db_pool, &body.username, &hashed_password).await {
+        Ok(_) => Ok(Response::builder()
+            .status(StatusCode::CREATED)
+            .body("".to_string())),
         Err(error) => {
-            eprintln!("Error writing user entry for user {}: {}", &body.username, error.to_string());
+            eprintln!("Error when storing user {}: {}", &body.username, error);
             return Ok(Response::builder()
                 .status(StatusCode::CONFLICT)
-                .body("This email is already in use".to_string())
+                .body("".to_string())
             );
         }
     }
@@ -283,5 +312,14 @@ mod tests {
             &jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS512))
             .expect("Unable to decode jwt");
         assert_eq!("username", decoded.claims.sub);
+    }
+
+    #[test]
+    fn test_generate_random_string() {
+        let generated_string = String::from_utf8(generate_random_string())
+            .expect("Error parsing generated string");
+        let entropy = zxcvbn::zxcvbn(&generated_string, &[])
+            .expect("Error computing string entropy");
+        assert_eq!(entropy.score(), 4);
     }
 }

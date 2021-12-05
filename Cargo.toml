@@ -21,3 +21,6 @@ serde = { version = "1", features = ["derive"] }
 sqlx = {version = "0.5", features = ["runtime-tokio-rustls", "sqlite", "migrate"]}
 tokio = { version = "1", features = ["full"] }
 warp = "0.3"
+
+[dev-dependencies]
+zxcvbn = "2"
