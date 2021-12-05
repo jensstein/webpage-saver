@@ -1,6 +1,27 @@
 stages:
-- test
+  - test
+  - cargo:test:nightly
 sast:
   stage: test
 include:
 - template: Security/SAST.gitlab-ci.yml
+
+.install_openssl: &install_openssl |
+  apt-get update
+  apt-get install -y pkg-config libssl-dev
+
+
+test:cargo:
+  image: rust:1.57-slim-bullseye
+  stage: test
+  script:
+    - *install_openssl
+    - cargo test
+
+cargo:test:nightly:
+  image: rustlang/rust:nightly
+  stage: cargo:test:nightly
+  script:
+    - *install_openssl
+    - cargo test
+  allow_failure: true
