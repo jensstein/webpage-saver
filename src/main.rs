@@ -95,7 +95,7 @@ async fn get_user_id_from_auth_header(db_pool: &SqlitePool, auth_header: String)
             .status(StatusCode::UNAUTHORIZED)
             .body("".to_string())
         );
-    }, |user_id| { Ok(user_id)})
+    }, |(user_id, _)| { Ok(user_id)})
 }
 
 async fn fetch_handler(db_pool: SqlitePool,
@@ -271,7 +271,12 @@ async fn main() {
             .and(warp::path("verify-user"))
             .and(pool.clone())
             .and(warp::body::json())
-            .and_then(auth::verify_user_handler));
+            .and_then(auth::verify_user_handler))
+        .or(warp::post()
+            .and(warp::path("verify-jwt"))
+            .and(pool.clone())
+            .and(warp::body::json())
+            .and_then(auth::verify_jwt_handler));
     let routes = warp::path("api").and(api_routes);
     warp::serve(routes).run(([127, 0, 0, 1], port)).await;
 }

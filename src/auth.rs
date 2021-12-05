@@ -38,14 +38,14 @@ impl From<jsonwebtoken::errors::Error> for AuthConfigError {
     }
 }
 
-impl From<std::env::VarError> for AuthConfigError {
-    fn from(error: std::env::VarError) -> Self {
-        AuthConfigError {message: error.to_string()}
+impl From<argon2::password_hash::Error> for AuthError {
+    fn from(error: argon2::password_hash::Error) -> Self {
+        AuthError {message: error.to_string()}
     }
 }
 
-impl From<argon2::password_hash::Error> for AuthError {
-    fn from(error: argon2::password_hash::Error) -> Self {
+impl From<jsonwebtoken::errors::Error> for AuthError {
+    fn from(error: jsonwebtoken::errors::Error) -> Self {
         AuthError {message: error.to_string()}
     }
 }
@@ -54,6 +54,12 @@ impl From<argon2::password_hash::Error> for AuthError {
 pub struct User {
     pub username: String,
     pub password: String,
+}
+
+#[derive(Deserialize,Debug)]
+pub struct JWTRequest {
+    pub username: String,
+    pub jwt: String,
 }
 
 pub fn decode_basic_auth_header(encoded_auth: &str) -> Result<User, AuthError> {
@@ -154,12 +160,12 @@ pub async fn register_handler(db_pool: SqlitePool, body: User) ->
     }
 }
 
-fn verify_user_with_password(provided_pass: &str, optional_hashed_pass: &Option<(i64, String,)>) -> Result<Option<i64>, AuthError> {
+fn verify_user_with_password(provided_pass: &str, optional_hashed_pass: &Option<(i64, String, Vec<u8>)>) -> Result<Option<(i64, Vec<u8>)>, AuthError> {
     let fallback_password = "$argon2id$v=19$m=4096,t=3,p=1$ewSM8Hmctto5QHVv27S1cA$o6GeMd3PriFhi2CalkBmG1cV/AMi+ry0r/6fjmeSaFQ";
     match optional_hashed_pass {
-        Some((user_id, password_hash,)) => {
+        Some((user_id, password_hash, jwt_secret)) => {
             if verify_password(provided_pass, &password_hash)? {
-                Ok(Some(user_id.to_owned()))
+                Ok(Some((user_id.to_owned(), jwt_secret.to_owned())))
             } else {
                 Ok(None)
             }
@@ -176,14 +182,19 @@ fn verify_user_with_password(provided_pass: &str, optional_hashed_pass: &Option<
 }
 
 pub async fn verify_password_from_database(db_pool: &SqlitePool, username: &str, password: &str)
-        -> Result<Option<i64>, AuthError> {
-    sqlx::query_as::<_, (i64, String,)>("SELECT id, password_hash FROM users WHERE username = $1")
+        -> Result<Option<(i64, Vec<u8>)>, AuthError> {
+    sqlx::query_as::<_, (i64, String, Vec<u8>)>("SELECT users.id, users.password_hash, jwt_secrets.secret FROM users JOIN jwt_secrets ON users.id = jwt_secrets.user_id WHERE username = $1")
             .bind(username)
             .fetch_optional(db_pool).await
             .map_or_else(|error| {
                 Err(AuthError {message: format!("Error getting password from database for user {}: {}", username, error)})
             }, |optional_hashed_pass| {
-                Ok(verify_user_with_password(password, &optional_hashed_pass)?)
+                if let Some(user_id_and_secret) = verify_user_with_password(password, &optional_hashed_pass)? {
+                    Ok(Some(user_id_and_secret))
+                } else {
+                    eprintln!("Unable to fetch user info for user {}", username);
+                    Ok(None)
+                }
             })
 }
 
@@ -197,24 +208,64 @@ pub async fn verify_user_handler(db_pool: SqlitePool, body: User) ->
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body("".to_string()))
                 }, |verified_user_id| {
-                        if verified_user_id.is_some() {
-                            match create_jwt(&body.username, 60) {
-                                Ok(jwt) => Ok(Response::builder()
-                                    .status(StatusCode::OK)
-                                    .body(jwt)),
-                                Err(error) => {
-                                    eprintln!("Error when creating jwt for user {}: {}", &body.username, error);
-                                    Ok(Response::builder()
-                                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                                        .body("".to_string()))
+                        match verified_user_id {
+                            Some((_, secret)) => {
+                                match create_jwt(&body.username, secret.as_ref(), 60) {
+                                    Ok(jwt) => Ok(Response::builder()
+                                        .status(StatusCode::OK)
+                                        .body(jwt)),
+                                    Err(error) => {
+                                        eprintln!("Error when creating jwt for user {}: {}", &body.username, error);
+                                        Ok(Response::builder()
+                                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                            .body("".to_string()))
+                                    }
                                 }
+                            },
+                            None => {
+                                return Ok(Response::builder()
+                                    .status(StatusCode::UNAUTHORIZED)
+                                    .body("Password doesn't match".to_string()))
                             }
-                        } else {
-                            return Ok(Response::builder()
-                                .status(StatusCode::UNAUTHORIZED)
-                                .body("Password doesn't match".to_string()))
                         }
                 })
+}
+
+fn decode_jwt(jwt: &str, secret: &[u8]) -> Result<String, jsonwebtoken::errors::Error> {
+    jsonwebtoken::decode::<Claims>(&jwt,
+        &jsonwebtoken::DecodingKey::from_secret(secret),
+        &jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS512))
+    .map(|decoded_jwt| decoded_jwt.claims.sub)
+}
+
+async fn verify_jwt(db_pool: &SqlitePool, username: &str, jwt: &str) ->
+        Result<String, AuthError> {
+    sqlx::query_as::<_, (Vec<u8>,)>("SELECT jwt_secrets.secret FROM jwt_secrets JOIN users ON jwt_secrets.user_id = users.id WHERE users.username = $1")
+            .bind(username)
+            .fetch_optional(db_pool).await
+            .map_or_else(|error| {
+                Err(AuthError {message: format!("Error fetching jwt secret for user {}: {}", username, error)})
+        }, |optional_secret: Option<(Vec<u8>,)>| {
+            match optional_secret {
+                Some(secret) => Ok(decode_jwt(jwt, secret.0.as_ref())?),
+                None => Err(AuthError {message: format!("No jwt secret found for user {}", username)})
+            }
+        })
+}
+
+pub async fn verify_jwt_handler(db_pool: SqlitePool, jwt_body: JWTRequest)
+        -> Result<impl warp::Reply, warp::Rejection> {
+    match verify_jwt(&db_pool, &jwt_body.username, &jwt_body.jwt).await {
+        Ok(_) => Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body("".to_string())),
+        Err(error) => {
+            println!("Error {}", error);
+            Ok(Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body("".to_string()))
+        }
+    }
 }
 
 // The naming of these fields is significant: https://github.com/Keats/jsonwebtoken#validation
@@ -224,7 +275,7 @@ struct Claims {
     exp: usize,
 }
 
-fn create_jwt(username: &str, expiration_in_seconds: i64) -> Result<String, AuthConfigError> {
+fn create_jwt(username: &str, secret: &[u8], expiration_in_seconds: i64) -> Result<String, AuthConfigError> {
     let experiation = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::seconds(expiration_in_seconds))
             .ok_or_else(|| AuthConfigError {
@@ -232,10 +283,9 @@ fn create_jwt(username: &str, expiration_in_seconds: i64) -> Result<String, Auth
             })?
         .timestamp() as usize;
     let claims = Claims {sub: username.to_string(), exp: experiation};
-    let secret = std::env::var("JWT_SECRET_KEY")?;
     Ok(jsonwebtoken::encode(
         &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS512),
-        &claims, &jsonwebtoken::EncodingKey::from_secret(secret.as_ref())
+        &claims, &jsonwebtoken::EncodingKey::from_secret(secret)
     )?)
 }
 
@@ -297,18 +347,10 @@ mod tests {
 
     #[test]
     fn test_create_jwt() {
-        let mut env_set = false;
-        if let None = std::env::var_os("JWT_SECRET_KEY") {
-            std::env::set_var("JWT_SECRET_KEY", "secret");
-            env_set = true;
-        }
-        let secret = std::env::var("JWT_SECRET_KEY").expect("JWT secret not set");
-        let jwt = create_jwt("username", 60).expect("Unable to create jwt");
-        if env_set {
-            std::env::remove_var("JWT_SECRET_KEY");
-        }
+        let secret = b"secret";
+        let jwt = create_jwt("username", secret, 60).expect("Unable to create jwt");
         let decoded = jsonwebtoken::decode::<Claims>(&jwt,
-            &jsonwebtoken::DecodingKey::from_secret(secret.as_ref()),
+            &jsonwebtoken::DecodingKey::from_secret(secret),
             &jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS512))
             .expect("Unable to decode jwt");
         assert_eq!("username", decoded.claims.sub);
