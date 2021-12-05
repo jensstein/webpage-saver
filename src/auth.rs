@@ -198,7 +198,7 @@ pub async fn verify_password_from_database(db_pool: &SqlitePool, username: &str,
             })
 }
 
-pub async fn verify_user_handler(db_pool: SqlitePool, body: User) ->
+pub async fn login_handler(db_pool: SqlitePool, body: User) ->
         Result<impl warp::Reply, warp::Rejection> {
     verify_password_from_database(&db_pool, &body.username, &body.password)
         .await
