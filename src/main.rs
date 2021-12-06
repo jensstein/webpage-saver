@@ -7,6 +7,7 @@ use std::str::FromStr;
 
 use clap::{App,Arg,ArgMatches};
 use html5ever::tendril::TendrilSink;
+use kuchiki::iter::NodeIterator;
 use serde::Deserialize;
 use sqlx::ConnectOptions;
 use sqlx::sqlite::{SqliteConnectOptions,SqlitePool};
@@ -58,12 +59,14 @@ async fn fetch_webpage(http_client: reqwest::Client, url: &str) -> Result<String
     }
 }
 
-async fn write_to_db(conn: SqlitePool, url: &str, text: &str, html: &str, user_id: i64) ->
+async fn write_to_db(conn: SqlitePool, url: &str, webpage: &Webpage,  user_id: i64) ->
         Result<(), sqlx::Error> {
-    let result = sqlx::query("INSERT INTO webpages(url, text, html, user_id) VALUES (?1, ?2, ?3, ?4)")
+    let result = sqlx::query("INSERT INTO webpages(url, title, text, html, image_url, user_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
         .bind(url)
-        .bind(text)
-        .bind(html)
+        .bind(&webpage.title)
+        .bind(&webpage.contents)
+        .bind(&webpage.original_html)
+        .bind(&webpage.image_url)
         .bind(user_id)
         .execute(&conn).await?;
     println!("ASD {} {:?}", url, result);
@@ -76,8 +79,8 @@ async fn fetch_handler(db_pool: SqlitePool,
 
     match fetch_webpage(http_client, &body.url).await {
         Ok(html) => {
-            let text = traverse_document(&html);
-            match write_to_db(db_pool, &body.url, &text, &html, user_id).await {
+            let webpage = traverse_document(&html);
+            match write_to_db(db_pool, &body.url, &webpage, user_id).await {
                 // Return-typen bestemmes af Responsens body, så hvis den er String det ene sted,
                 // skal den også være String det andet. Og den er nødt til at være String i
                 // Err-delen, fordi man ikke kan sende en reference til error ud af funktionen.
@@ -109,7 +112,15 @@ async fn migrate_db(migrations_path: &str, conn: &SqlitePool) -> Result<(), sqlx
     Ok(())
 }
 
-fn traverse_document(html: &str) -> String {
+#[derive(Debug)]
+struct Webpage {
+    title: String,
+    contents: String,
+    image_url: Option<String>,
+    original_html: String,
+}
+
+fn traverse_document(html: &str) -> Webpage {
     let document = kuchiki::parse_html().one(html);
     // https://stackoverflow.com/a/66277475
     document.inclusive_descendants()
@@ -119,6 +130,31 @@ fn traverse_document(html: &str) -> String {
         .collect::<Vec<_>>()
         .iter()
         .for_each(|node| node.detach());
+    let title = document.select_first("title").map_or_else(|_| {
+            let mut i = 0;
+            let mut string_builder = Vec::new();
+            for child in document.inclusive_descendants().text_nodes() {
+                string_builder.push(child.borrow().to_string());
+                if i >= 5 {
+                    break;
+                }
+                i += 1;
+            }
+            string_builder.join(" ").trim().to_string()
+        }, |node| node.text_contents().trim().to_string());
+    let image_url = document.select_first("img").map_or(None, |node| {
+        match node.as_node().data() {
+            kuchiki::NodeData::Element(element_data) => {
+                for (key, value) in &element_data.attributes.borrow().map {
+                    if key.local.to_string() == "src" {
+                        return Some(value.value.to_string())
+                    }
+                }
+                None
+            },
+            _ => None
+        }
+    });
     let tags_to_ignore = ["html", "head", "meta", "link", "style", "body",
         "main", "article", "div", "script", "nav", "ul", "footer", "svg",
         "path", "figure", "picture", "iframe"];
@@ -158,7 +194,12 @@ fn traverse_document(html: &str) -> String {
             },
         }
     }
-    string_builder.join(" ")
+    Webpage {
+        title,
+        contents: string_builder.join(" "),
+        image_url,
+        original_html: html.to_string(),
+    }
 }
 
 fn attributes_to_string(attributes: &kuchiki::Attributes) -> String {
