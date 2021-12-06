@@ -1,4 +1,5 @@
 mod auth;
+mod errors;
 
 use std::path::Path;
 use std::str::FromStr;
@@ -68,46 +69,9 @@ async fn write_to_db(conn: SqlitePool, url: &str, text: &str, html: &str, user_i
     Ok(())
 }
 
-async fn get_user_id_from_auth_header(db_pool: &SqlitePool, auth_header: String) ->
-        Result<i64, Result<warp::http::Response<std::string::String>, warp::http::Error>> {
-    let decoded_user = match auth::decode_basic_auth_header(&auth_header) {
-        Ok(decoded_user) => decoded_user,
-        Err(error) => {
-            eprintln!("Error decoding header {}: {}", auth_header, error);
-            return Err(Response::builder()
-                .status(StatusCode::UNAUTHORIZED)
-                .body("".to_string())
-            );
-        }
-    };
-    let user_id = match auth::verify_password_from_database(&db_pool, &decoded_user.username, &decoded_user.password).await {
-        Ok(user_id) => user_id,
-        Err(error) => {
-            eprintln!("Error verifying user {:?}: {}", decoded_user, error);
-            return Err(Response::builder()
-                .status(StatusCode::UNAUTHORIZED)
-                .body("".to_string())
-            );
-        }
-    };
-    user_id.map_or_else(|| {
-        return Err(Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .body("".to_string())
-        );
-    }, |(user_id, _)| { Ok(user_id)})
-}
-
 async fn fetch_handler(db_pool: SqlitePool,
-        http_client: reqwest::Client, body: FetchWebpage, auth_header: String) ->
+        http_client: reqwest::Client, body: FetchWebpage, user_id: i64) ->
         Result<impl warp::Reply, warp::Rejection> {
-
-    let user_id = match get_user_id_from_auth_header(&db_pool, auth_header).await {
-        Ok(user_id) => user_id,
-        Err(error) => {
-            return Ok(error);
-        }
-    };
 
     match fetch_webpage(http_client, &body.url).await {
         Ok(html) => {
@@ -244,21 +208,16 @@ async fn main() {
     create_sqlite_db(db_url).await.expect("Error creating database file");
     let pool_ = SqlitePool::connect(db_url).await.expect("Unable to get database connection pool");
     migrate_db("db/migrations", &pool_).await.expect("Unable to migrate database");
+    // This db pool is passed to the jwt authorization filter
+    let auth_pool = pool_.clone();
     let pool = warp::any().map(move|| pool_.clone());
     let http_client = warp::any().map(move|| reqwest::Client::new());
-    let auth_header = warp::any().and(warp::header::<String>("Authorization"))
-        .map(|token: String| {
-            if token.to_lowercase().contains("basic ") {
-                return token[6..].to_string()
-            }
-            token
-        });
     let api_routes = warp::post()
             .and(warp::path("fetch"))
             .and(pool.clone())
             .and(http_client)
             .and(warp::body::json())
-            .and(auth_header)
+            .and(auth::with_jwt_auth(auth_pool))
             .and_then(fetch_handler)
         .or(
             warp::get().and(warp::path("status")).map(|| "OK"))
@@ -277,7 +236,7 @@ async fn main() {
             .and(pool.clone())
             .and(warp::body::json())
             .and_then(auth::verify_jwt_handler));
-    let routes = warp::path("api").and(api_routes);
+    let routes = warp::path("api").and(api_routes).recover(errors::handle_rejection);
     warp::serve(routes).run(([127, 0, 0, 1], port)).await;
 }
 

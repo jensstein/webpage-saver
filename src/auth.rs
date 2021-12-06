@@ -1,10 +1,14 @@
+use crate::errors;
+
 use argon2::password_hash::{PasswordHash,SaltString};
 use argon2::{Argon2,PasswordHasher,PasswordVerifier};
 use rand::Rng;
 use sqlx::sqlite::SqlitePool;
 use serde::Deserialize;
 use serde::Serialize;
-use warp::http::{StatusCode,Response};
+use warp::Filter;
+use warp::filters::header::headers_cloned;
+use warp::http::{header::HeaderMap,header::HeaderValue,StatusCode,Response};
 
 // https://www.lpalmieri.com/posts/password-authentication-in-rust/
 
@@ -60,26 +64,6 @@ pub struct User {
 pub struct JWTRequest {
     pub username: String,
     pub jwt: String,
-}
-
-pub fn decode_basic_auth_header(encoded_auth: &str) -> Result<User, AuthError> {
-    base64::decode_config(encoded_auth, base64::STANDARD)
-        .map_or_else(|error| {
-            Err(AuthError {message: format!("Unable to decode provided header {}: {}", encoded_auth, error)})
-        }, |decoded_bytes| {
-            match String::from_utf8(decoded_bytes) {
-                Ok(decoded_bytes) => Ok(decoded_bytes),
-                Err(error) => Err(AuthError {message: format!("Unable to decode provided header {}: {}", encoded_auth, error)})
-            }
-        })
-        .and_then(|credentials|{
-            let parts = credentials.splitn(2, ':').collect::<Vec<&str>>();
-            if parts.len() != 2 {
-                Err(AuthError {message: format!("Unable parse decoded credentials {}", credentials)})
-            } else {
-                Ok(User {username: parts[0].to_string(), password: parts[1].to_string()})
-            }
-        })
 }
 
 fn validate_password_chars(password: &str) -> bool {
@@ -238,6 +222,17 @@ fn decode_jwt(jwt: &str, secret: &[u8]) -> Result<String, jsonwebtoken::errors::
     .map(|decoded_jwt| decoded_jwt.claims.sub)
 }
 
+pub fn get_sub_from_jwt_insecure(jwt: &str) -> Option<String> {
+    match jsonwebtoken::dangerous_insecure_decode_with_validation::<Claims>(
+            &jwt, &jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS512)) {
+        Ok(token) => Some(token.claims.sub),
+        Err(error) => {
+            eprintln!("Error decoding jwt {}: {}", jwt, error);
+            None
+        }
+    }
+}
+
 async fn verify_jwt(db_pool: &SqlitePool, username: &str, jwt: &str) ->
         Result<String, AuthError> {
     sqlx::query_as::<_, (Vec<u8>,)>("SELECT jwt_secrets.secret FROM jwt_secrets JOIN users ON jwt_secrets.user_id = users.id WHERE users.username = $1")
@@ -297,6 +292,52 @@ fn hash_password(password: &str) -> Result<String, argon2::password_hash::Error>
 fn verify_password(password: &str, hashed_password: &str) -> Result<bool, argon2::password_hash::Error> {
     let hash = PasswordHash::new(&hashed_password)?;
     Ok(Argon2::default().verify_password(password.as_bytes(), &hash).is_ok())
+}
+
+pub fn with_jwt_auth(db_pool: SqlitePool) -> impl warp::Filter<Extract = (i64,), Error = warp::Rejection> + Clone {
+    headers_cloned()
+        .map(move |headers: HeaderMap<HeaderValue>| (db_pool.clone(), headers))
+        .and_then(authorize_from_jwt)
+}
+
+async fn authorize_from_jwt(arg_tuple: (SqlitePool, HeaderMap)) -> Result<i64, warp::Rejection> {
+    let (db_pool, headers) = arg_tuple;
+    let header = match headers.get("Authorization") {
+        Some(header_value) => header_value,
+        None => return Err(warp::reject::custom(errors::Error::MissingAuthorizationHeader))
+    };
+    // The to_str method of HeaderValue can only parse as visible ascii characters so as_bytes is
+    // used to get a larger range of possible characters.
+    let auth_header = match std::str::from_utf8(header.as_bytes()) {
+        Ok(auth_header) => auth_header,
+        Err(error) => {
+            eprintln!("Error parsing auth header: {}", error);
+            return Err(warp::reject::custom(errors::Error::MissingAuthorizationHeader));
+        }
+    };
+    if !auth_header.to_lowercase().starts_with("bearer ") {
+        return Err(warp::reject::custom(errors::Error::MissingAuthorizationHeader));
+    }
+    let jwt = auth_header[7..].to_string();
+    let sub = get_sub_from_jwt_insecure(&jwt);
+    sqlx::query_as::<_, (i64, Vec<u8>)>("SELECT users.id, secret FROM jwt_secrets JOIN users ON users.id = jwt_secrets.user_id WHERE users.username = $1")
+            .bind(sub)
+            .fetch_optional(&db_pool).await
+            .map_or_else(|error| {
+                eprintln!("Error when fetching jwt secret from database: {}", error);
+                return Err(warp::reject::custom(errors::Error::UnknownUser))
+            }, |optional_secret| {
+                optional_secret.ok_or_else(|| warp::reject::custom(errors::Error::UnknownUser))
+            })
+            .and_then(|(user_id, secret)| {
+                decode_jwt(&jwt, secret.as_ref())
+                    .map_or_else(
+                        |error| {
+                            eprintln!("Error when decoding jwt: {}", error);
+                            Err(warp::reject::custom(errors::Error::MissingAuthorizationHeader))
+                        },
+                        |_| Ok(user_id))
+            })
 }
 
 #[cfg(test)]
