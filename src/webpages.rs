@@ -7,12 +7,21 @@ use warp::http::StatusCode;
 
 #[derive(Serialize,Debug)]
 struct ShowWebpageResponse {
+    title: String,
+    image_url: Option<String>,
     content: String,
 }
 
 #[derive(Serialize,Debug)]
 struct ListWebpagesResponse {
-    webpage_ids: Vec<i64>,
+    webpage_infos: Vec<WebpageInfo>,
+}
+
+#[derive(Serialize,Debug)]
+struct WebpageInfo {
+    id: i64,
+    title: String,
+    image_url: Option<String>,
 }
 
 // The names of these enum variants should appear exactly as they are meant to be typed in as query
@@ -40,7 +49,7 @@ pub async fn show_stored_webpage_handler(webpage_id: i64, query_params: ShowOpti
         Result<impl warp::Reply, warp::Rejection> {
     let mode = &query_params.mode.unwrap_or(ShowMode::readable);
     let table = showmode_to_db_table(mode);
-    let (response, status_code) = sqlx::query_as::<_, (String,)>(&format!("SELECT {} FROM webpages WHERE rowid = $1 AND user_id = $2", table))
+    let (response, status_code) = sqlx::query_as::<_, (String,Option<String>,String)>(&format!("SELECT title, image_url, {} FROM webpages WHERE rowid = $1 AND user_id = $2", table))
         .bind(webpage_id)
         .bind(user_id)
         .fetch_optional(&db_pool).await
@@ -55,8 +64,10 @@ pub async fn show_stored_webpage_handler(webpage_id: i64, query_params: ShowOpti
             (json, status)
         }, |optional_webpage| {
             match optional_webpage {
-                Some((text,)) => {
+                Some((title, image_url, text)) => {
                     let json = warp::reply::json(&ShowWebpageResponse {
+                        title,
+                        image_url,
                         content: text
                     });
                     (json, StatusCode::OK)
@@ -76,7 +87,7 @@ pub async fn show_stored_webpage_handler(webpage_id: i64, query_params: ShowOpti
 
 pub async fn get_stored_webpages_for_user(db_pool: SqlitePool, user_id: i64) ->
         Result<impl warp::Reply, warp::Rejection> {
-    let (response, status_code) = sqlx::query_as::<_, (i64,)>("SELECT rowid FROM webpages WHERE user_id = $1")
+    let (response, status_code) = sqlx::query_as::<_, (i64,String,Option<String>)>("SELECT rowid, title, image_url FROM webpages WHERE user_id = $1")
         .bind(user_id)
         .fetch_all(&db_pool).await
         .map_or_else(|error| {
@@ -88,10 +99,16 @@ pub async fn get_stored_webpages_for_user(db_pool: SqlitePool, user_id: i64) ->
                 status: status.to_string(),
             });
             (json, status)
-        }, |ids| {
-            let ids_vec = ids.iter().map(|id| id.0).collect::<Vec<i64>>();
+        }, |rows| {
+            let webpage_infos = rows.iter().map(|(id, title, image_url)| {
+                WebpageInfo {
+                    id: id.to_owned(),
+                    title: title.to_owned(),
+                    image_url: image_url.to_owned()
+                }
+            }).collect::<Vec<WebpageInfo>>();
             let json = warp::reply::json(&ListWebpagesResponse {
-                webpage_ids: ids_vec,
+                webpage_infos,
             });
             (json, StatusCode::OK)
         });
