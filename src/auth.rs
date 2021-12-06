@@ -66,6 +66,11 @@ pub struct JWTRequest {
     pub jwt: String,
 }
 
+#[derive(Serialize,Debug)]
+struct JWTResponse {
+    jwt: String
+}
+
 fn validate_password_chars(password: &str) -> bool {
     password.len() >= 8
 }
@@ -184,35 +189,48 @@ pub async fn verify_password_from_database(db_pool: &SqlitePool, username: &str,
 
 pub async fn login_handler(db_pool: SqlitePool, body: User) ->
         Result<impl warp::Reply, warp::Rejection> {
-    verify_password_from_database(&db_pool, &body.username, &body.password)
+    let (response, status_code) = verify_password_from_database(&db_pool, &body.username, &body.password)
         .await
         .map_or_else(|error| {
-                eprintln!("{}", error);
-                return Ok(Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body("".to_string()))
-                }, |verified_user_id| {
-                        match verified_user_id {
-                            Some((_, secret)) => {
-                                match create_jwt(&body.username, secret.as_ref(), 60) {
-                                    Ok(jwt) => Ok(Response::builder()
-                                        .status(StatusCode::OK)
-                                        .body(jwt)),
-                                    Err(error) => {
-                                        eprintln!("Error when creating jwt for user {}: {}", &body.username, error);
-                                        Ok(Response::builder()
-                                            .status(StatusCode::INTERNAL_SERVER_ERROR)
-                                            .body("".to_string()))
-                                    }
+            eprintln!("Error when verifying password for user {}: {}", &body.username, error);
+            let status = StatusCode::INTERNAL_SERVER_ERROR;
+            let json = warp::reply::json(&errors::ErrorResponse {
+                message: "Unknown error".to_string(),
+                status: status.to_string(),
+            });
+            (json, status)
+            }, |verified_user_id| {
+                    match verified_user_id {
+                        Some((_, secret)) => {
+                            match create_jwt(&body.username, secret.as_ref(), 60 * 60 * 24) {
+                                Ok(jwt) => {
+                                    let json = warp::reply::json(&JWTResponse {
+                                        jwt
+                                    });
+                                    (json, StatusCode::OK)
+                                },
+                                Err(error) => {
+                                    eprintln!("Error when creating jwt for user {}: {}", &body.username, error);
+                                    let status = StatusCode::INTERNAL_SERVER_ERROR;
+                                    let json = warp::reply::json(&errors::ErrorResponse {
+                                        message: "Unknown error".to_string(),
+                                        status: status.to_string(),
+                                    });
+                                    (json, status)
                                 }
-                            },
-                            None => {
-                                return Ok(Response::builder()
-                                    .status(StatusCode::UNAUTHORIZED)
-                                    .body("Password doesn't match".to_string()))
                             }
+                        },
+                        None => {
+                            let status = StatusCode::UNAUTHORIZED;
+                            let json = warp::reply::json(&errors::ErrorResponse {
+                                message: "Password doesn't match".to_string(),
+                                status: status.to_string(),
+                            });
+                            (json, status)
                         }
-                })
+                    }
+            });
+    Ok(warp::reply::with_status(response, status_code))
 }
 
 fn decode_jwt(jwt: &str, secret: &[u8]) -> Result<String, jsonwebtoken::errors::Error> {
