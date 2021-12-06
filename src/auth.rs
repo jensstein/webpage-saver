@@ -358,6 +358,53 @@ async fn authorize_from_jwt(arg_tuple: (SqlitePool, HeaderMap)) -> Result<i64, w
             })
 }
 
+pub async fn extend_jwt_handler(db_pool: SqlitePool, user_id: i64) ->
+        Result<impl warp::Reply, warp::Rejection> {
+    let (response, status_code) = sqlx::query_as::<_, (String, Vec<u8>)>("SELECT users.username, jwt_secrets.secret FROM users JOIN jwt_secrets ON users.id = jwt_secrets.user_id WHERE users.id = $1")
+        .bind(user_id)
+        .fetch_optional(&db_pool).await
+        .map_or_else(|error| {
+            eprintln!("Error when creating jwt for user {}: {}", user_id, error);
+            let status = StatusCode::INTERNAL_SERVER_ERROR;
+            let json = warp::reply::json(&errors::ErrorResponse {
+                message: format!("Error creating jwt"),
+                status: status.to_string(),
+            });
+            (json, status)
+        }, |opt_row| {
+            match opt_row {
+                Some((username, secret)) => {
+                    match create_jwt(&username, secret.as_ref(), 60 * 60 * 24) {
+                        Ok(jwt) => {
+                            let json = warp::reply::json(&JWTResponse {
+                                jwt
+                            });
+                            (json, StatusCode::OK)
+                        },
+                        Err(error) => {
+                            eprintln!("Error when creating jwt for user {}: {}", username, error);
+                            let status = StatusCode::INTERNAL_SERVER_ERROR;
+                            let json = warp::reply::json(&errors::ErrorResponse {
+                                message: format!("Error creating jwt: {}", error),
+                                status: status.to_string(),
+                            });
+                            (json, status)
+                        }
+                    }
+                },
+                None => {
+                    let status = StatusCode::UNAUTHORIZED;
+                    let json = warp::reply::json(&errors::ErrorResponse {
+                        message: "Unknown user".to_string(),
+                        status: status.to_string(),
+                    });
+                    (json, status)
+                }
+            }
+        });
+    Ok(warp::reply::with_status(response, status_code))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

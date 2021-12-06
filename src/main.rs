@@ -232,7 +232,7 @@ async fn main() {
         .or(warp::get()
             .and(warp::path("list-stored-webpages"))
             .and(pool.clone())
-            .and(auth::with_jwt_auth(auth_pool))
+            .and(auth::with_jwt_auth(auth_pool.clone()))
             .and_then(webpages::get_stored_webpages_for_user))
         .or(warp::post()
             .and(warp::path("register"))
@@ -248,7 +248,12 @@ async fn main() {
             .and(warp::path("verify-jwt"))
             .and(pool.clone())
             .and(warp::body::json())
-            .and_then(auth::verify_jwt_handler));
+            .and_then(auth::verify_jwt_handler))
+        .or(warp::get()
+            .and(warp::path("extend-jwt"))
+            .and(pool.clone())
+            .and(auth::with_jwt_auth(auth_pool))
+            .and_then(auth::extend_jwt_handler));
     let routes = warp::path("api").and(api_routes).recover(errors::handle_rejection);
     warp::serve(routes).run(([127, 0, 0, 1], port)).await;
 }
