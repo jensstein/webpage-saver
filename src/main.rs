@@ -1,5 +1,6 @@
 mod auth;
 mod errors;
+mod webpages;
 
 use std::path::Path;
 use std::str::FromStr;
@@ -217,10 +218,22 @@ async fn main() {
             .and(pool.clone())
             .and(http_client)
             .and(warp::body::json())
-            .and(auth::with_jwt_auth(auth_pool))
+            .and(auth::with_jwt_auth(auth_pool.clone()))
             .and_then(fetch_handler)
         .or(
             warp::get().and(warp::path("status")).map(|| "OK"))
+        .or(warp::get()
+            .and(warp::path("show-webpage"))
+            .and(warp::path::param())
+            .and(warp::query::<webpages::ShowOptions>())
+            .and(pool.clone())
+            .and(auth::with_jwt_auth(auth_pool.clone()))
+            .and_then(webpages::show_stored_webpage_handler))
+        .or(warp::get()
+            .and(warp::path("list-stored-webpages"))
+            .and(pool.clone())
+            .and(auth::with_jwt_auth(auth_pool))
+            .and_then(webpages::get_stored_webpages_for_user))
         .or(warp::post()
             .and(warp::path("register"))
             .and(pool.clone())
