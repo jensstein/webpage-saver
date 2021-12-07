@@ -1,0 +1,10 @@
+.thumbnail {
+    width: 5em;
+    height: 5em;
+}
+
+.box {
+    border: bisque;
+    border-style: dashed;
+    height: 15em;
+}
