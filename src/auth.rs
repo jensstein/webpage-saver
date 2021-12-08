@@ -3,7 +3,7 @@ use crate::errors;
 use argon2::password_hash::{PasswordHash,SaltString};
 use argon2::{Argon2,PasswordHasher,PasswordVerifier};
 use rand::Rng;
-use sqlx::sqlite::SqlitePool;
+use sqlx::PgPool;
 use serde::Deserialize;
 use serde::Serialize;
 use warp::Filter;
@@ -95,23 +95,22 @@ fn generate_random_string() -> Vec<u8> {
     .collect()
 }
 
-async fn store_new_user_with_jwt_secret(db_pool: SqlitePool, username: &str, hashed_password: &str)
-        -> Result<(), sqlx::Error> {
-    let mut transaction = db_pool.begin().await?;
-    let inserted_row = sqlx::query("INSERT INTO users(username, password_hash) VALUES($1, $2)")
+async fn store_new_user_with_jwt_secret(db_pool: PgPool, username: &str, hashed_password: &str)
+        -> Result<sqlx::postgres::PgQueryResult, sqlx::Error> {
+    let generated_jwt_secret = generate_random_string();
+    Ok(sqlx::query("
+WITH new_user AS (
+    INSERT INTO users(username, password_hash) VALUES($1, $2) RETURNING id
+    )
+INSERT INTO jwt_secrets(secret, user_id) (SELECT $3, id FROM new_user)
+")
         .bind(username)
         .bind(hashed_password)
-        .execute(&mut transaction).await?;
-    let generated_jwt_secret = generate_random_string();
-    sqlx::query("INSERT INTO jwt_secrets(secret, user_id) VALUES($1, $2)")
         .bind(generated_jwt_secret)
-        .bind(inserted_row.last_insert_rowid())
-        .execute(&mut transaction).await?;
-    transaction.commit().await?;
-    Ok(())
+        .execute(&db_pool).await?)
 }
 
-pub async fn register_handler(db_pool: SqlitePool, body: User) ->
+pub async fn register_handler(db_pool: PgPool, body: User) ->
         Result<impl warp::Reply, warp::Rejection> {
     if !validate_password_chars(&body.password) {
         return Ok(Response::builder()
@@ -149,7 +148,7 @@ pub async fn register_handler(db_pool: SqlitePool, body: User) ->
     }
 }
 
-fn verify_user_with_password(provided_pass: &str, optional_hashed_pass: &Option<(i64, String, Vec<u8>)>) -> Result<Option<(i64, Vec<u8>)>, AuthError> {
+fn verify_user_with_password(provided_pass: &str, optional_hashed_pass: &Option<(i64, String, String)>) -> Result<Option<(i64, String)>, AuthError> {
     let fallback_password = "$argon2id$v=19$m=4096,t=3,p=1$ewSM8Hmctto5QHVv27S1cA$o6GeMd3PriFhi2CalkBmG1cV/AMi+ry0r/6fjmeSaFQ";
     match optional_hashed_pass {
         Some((user_id, password_hash, jwt_secret)) => {
@@ -170,9 +169,9 @@ fn verify_user_with_password(provided_pass: &str, optional_hashed_pass: &Option<
     }
 }
 
-pub async fn verify_password_from_database(db_pool: &SqlitePool, username: &str, password: &str)
-        -> Result<Option<(i64, Vec<u8>)>, AuthError> {
-    sqlx::query_as::<_, (i64, String, Vec<u8>)>("SELECT users.id, users.password_hash, jwt_secrets.secret FROM users JOIN jwt_secrets ON users.id = jwt_secrets.user_id WHERE username = $1")
+pub async fn verify_password_from_database(db_pool: &PgPool, username: &str, password: &str)
+        -> Result<Option<(i64, String)>, AuthError> {
+    sqlx::query_as::<_, (i64, String, String)>("SELECT users.id, users.password_hash, jwt_secrets.secret FROM users JOIN jwt_secrets ON users.id = jwt_secrets.user_id WHERE username = $1")
             .bind(username)
             .fetch_optional(db_pool).await
             .map_or_else(|error| {
@@ -187,7 +186,7 @@ pub async fn verify_password_from_database(db_pool: &SqlitePool, username: &str,
             })
 }
 
-pub async fn login_handler(db_pool: SqlitePool, body: User) ->
+pub async fn login_handler(db_pool: PgPool, body: User) ->
         Result<impl warp::Reply, warp::Rejection> {
     let (response, status_code) = verify_password_from_database(&db_pool, &body.username, &body.password)
         .await
@@ -251,22 +250,22 @@ pub fn get_sub_from_jwt_insecure(jwt: &str) -> Option<String> {
     }
 }
 
-async fn verify_jwt(db_pool: &SqlitePool, username: &str, jwt: &str) ->
+async fn verify_jwt(db_pool: &PgPool, username: &str, jwt: &str) ->
         Result<String, AuthError> {
-    sqlx::query_as::<_, (Vec<u8>,)>("SELECT jwt_secrets.secret FROM jwt_secrets JOIN users ON jwt_secrets.user_id = users.id WHERE users.username = $1")
+    sqlx::query_as::<_, (String,)>("SELECT jwt_secrets.secret FROM jwt_secrets JOIN users ON jwt_secrets.user_id = users.id WHERE users.username = $1")
             .bind(username)
             .fetch_optional(db_pool).await
             .map_or_else(|error| {
                 Err(AuthError {message: format!("Error fetching jwt secret for user {}: {}", username, error)})
-        }, |optional_secret: Option<(Vec<u8>,)>| {
+        }, |optional_secret: Option<(String,)>| {
             match optional_secret {
-                Some(secret) => Ok(decode_jwt(jwt, secret.0.as_ref())?),
+                Some(secret) => Ok(decode_jwt(jwt, secret.0.as_bytes())?),
                 None => Err(AuthError {message: format!("No jwt secret found for user {}", username)})
             }
         })
 }
 
-pub async fn verify_jwt_handler(db_pool: SqlitePool, jwt_body: JWTRequest)
+pub async fn verify_jwt_handler(db_pool: PgPool, jwt_body: JWTRequest)
         -> Result<impl warp::Reply, warp::Rejection> {
     match verify_jwt(&db_pool, &jwt_body.username, &jwt_body.jwt).await {
         Ok(_) => Ok(Response::builder()
@@ -312,13 +311,13 @@ fn verify_password(password: &str, hashed_password: &str) -> Result<bool, argon2
     Ok(Argon2::default().verify_password(password.as_bytes(), &hash).is_ok())
 }
 
-pub fn with_jwt_auth(db_pool: SqlitePool) -> impl warp::Filter<Extract = (i64,), Error = warp::Rejection> + Clone {
+pub fn with_jwt_auth(db_pool: PgPool) -> impl warp::Filter<Extract = (i64,), Error = warp::Rejection> + Clone {
     headers_cloned()
         .map(move |headers: HeaderMap<HeaderValue>| (db_pool.clone(), headers))
         .and_then(authorize_from_jwt)
 }
 
-async fn authorize_from_jwt(arg_tuple: (SqlitePool, HeaderMap)) -> Result<i64, warp::Rejection> {
+async fn authorize_from_jwt(arg_tuple: (PgPool, HeaderMap)) -> Result<i64, warp::Rejection> {
     let (db_pool, headers) = arg_tuple;
     let header = match headers.get("Authorization") {
         Some(header_value) => header_value,
@@ -338,7 +337,7 @@ async fn authorize_from_jwt(arg_tuple: (SqlitePool, HeaderMap)) -> Result<i64, w
     }
     let jwt = auth_header[7..].to_string();
     let sub = get_sub_from_jwt_insecure(&jwt);
-    sqlx::query_as::<_, (i64, Vec<u8>)>("SELECT users.id, secret FROM jwt_secrets JOIN users ON users.id = jwt_secrets.user_id WHERE users.username = $1")
+    sqlx::query_as::<_, (i64, String)>("SELECT users.id, secret FROM jwt_secrets JOIN users ON users.id = jwt_secrets.user_id WHERE users.username = $1")
             .bind(sub)
             .fetch_optional(&db_pool).await
             .map_or_else(|error| {
@@ -348,7 +347,7 @@ async fn authorize_from_jwt(arg_tuple: (SqlitePool, HeaderMap)) -> Result<i64, w
                 optional_secret.ok_or_else(|| warp::reject::custom(errors::Error::UnknownUser))
             })
             .and_then(|(user_id, secret)| {
-                decode_jwt(&jwt, secret.as_ref())
+                decode_jwt(&jwt, secret.as_bytes())
                     .map_or_else(
                         |error| {
                             log::error!("Error when decoding jwt: {}", error);
@@ -358,7 +357,7 @@ async fn authorize_from_jwt(arg_tuple: (SqlitePool, HeaderMap)) -> Result<i64, w
             })
 }
 
-pub async fn extend_jwt_handler(db_pool: SqlitePool, user_id: i64) ->
+pub async fn extend_jwt_handler(db_pool: PgPool, user_id: i64) ->
         Result<impl warp::Reply, warp::Rejection> {
     let (response, status_code) = sqlx::query_as::<_, (String, Vec<u8>)>("SELECT users.username, jwt_secrets.secret FROM users JOIN jwt_secrets ON users.id = jwt_secrets.user_id WHERE users.id = $1")
         .bind(user_id)

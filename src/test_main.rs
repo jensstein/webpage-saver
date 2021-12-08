@@ -1,21 +1,23 @@
 use super::*;
 
-use sqlx::sqlite::SqlitePool;
+use sqlx::PgPool;
 use sqlx::Row;
 
 #[derive(Debug)]
 struct WebpagesRow {
+    id: i64,
     url: String,
     title: String,
     text: String,
     html: String,
     image_url: Option<String>,
     user_id: i64,
-    added: String,
+    added: chrono::DateTime<chrono::Local>,
 }
 
 impl std::cmp::PartialEq for WebpagesRow {
     fn eq(&self, other: &Self) -> bool {
+        (self.id == other.id) &&
         (self.url == other.url) && (self.text == other.text) &&
             (self.html == other.html) && (self.title == other.title) &&
             (self.image_url == other.image_url) && (self.user_id == self.user_id)
@@ -33,36 +35,42 @@ fn test_traverse_document() {
 
 #[tokio::test]
 async fn test_database_migration() {
-    let conn = SqlitePool::connect("sqlite::memory:").await
+    let conn = PgPool::connect(
+        &std::env::var("TEST_DB").expect("`TEST_DB` variable not set")).await
         .expect("Unable to open database in memory");
     migrate_db(&conn).await.expect("Unable to migrate database");
     sqlx::query("INSERT INTO users VALUES(1, 'user', '$argon2id$v=19$m=4096,t=3,p=1$ewSM8Hmctto5QHVv27S1cA$o6GeMd3PriFhi2CalkBmG1cV/AMi+ry0r/6fjmeSaFQ')")
         .execute(&conn)
         .await.expect("Unable to insert into database");
+    let before = chrono::Local::now();
     sqlx::query("INSERT INTO webpages(url, text, html, user_id, title, image_url) VALUES('url', 'text', 'html', 1, 'title', 'image.url')")
         .execute(&conn)
         .await.expect("Unable to insert into database");
+    let after = chrono::Local::now();
     let rows = sqlx::query("SELECT * FROM webpages")
-        .map(|row: sqlx::sqlite::SqliteRow| {
+        .map(|row: sqlx::postgres::PgRow| {
             WebpagesRow {
-                url: row.get(0),
-                text: row.get(1),
-                html: row.get(2),
-                user_id: row.get(3),
-                title: row.get(4),
-                image_url: row.get(5),
-                added: row.get(6),
+                id: row.get(0),
+                url: row.get(1),
+                text: row.get(2),
+                html: row.get(3),
+                user_id: row.get(4),
+                title: row.get(5),
+                image_url: row.get(6),
+                added: row.get(7),
             }
         })
         .fetch_all(&conn).await.expect("Error fetching rows from database");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0], WebpagesRow{
+        id: 1,
         url: "url".to_string(),
         text: "text".to_string(),
         html: "html".to_string(),
         user_id: 1,
         title: "title".to_string(),
         image_url: Some("image.url".to_string()),
-        added: "".to_string(),
+        added: chrono::Local::now(),
     });
+    assert_eq!(rows[0].added > before && rows[0].added < after, true);
 }

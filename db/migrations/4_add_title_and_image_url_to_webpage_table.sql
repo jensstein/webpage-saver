@@ -1,2 +1,0 @@
-ALTER TABLE webpages ADD COLUMN title TEXT NOT NULL;
-ALTER TABLE webpages ADD COLUMN image_url TEXT;

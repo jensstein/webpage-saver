@@ -3,14 +3,12 @@ mod errors;
 mod webpages;
 
 use std::io::Write;
-use std::str::FromStr;
 
 use clap::{App,Arg,ArgMatches};
 use html5ever::tendril::TendrilSink;
 use kuchiki::iter::NodeIterator;
 use serde::Deserialize;
-use sqlx::ConnectOptions;
-use sqlx::sqlite::{SqliteConnectOptions,SqlitePool};
+use sqlx::PgPool;
 use warp::Filter;
 use warp::http::{StatusCode,Response};
 
@@ -61,9 +59,9 @@ async fn fetch_webpage(http_client: reqwest::Client, url: &str) -> Result<String
     }
 }
 
-async fn write_to_db(conn: SqlitePool, url: &str, webpage: &Webpage,  user_id: i64) ->
-        Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
-    Ok(sqlx::query("INSERT INTO webpages(url, title, text, html, image_url, user_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+async fn write_to_db(conn: PgPool, url: &str, webpage: &Webpage,  user_id: i64) ->
+        Result<sqlx::postgres::PgQueryResult, sqlx::Error> {
+    Ok(sqlx::query("INSERT INTO webpages(url, title, text, html, image_url, user_id) VALUES ($1, $2, $3, $4, $5, $6)")
         .bind(url)
         .bind(&webpage.title)
         .bind(&webpage.contents)
@@ -73,7 +71,7 @@ async fn write_to_db(conn: SqlitePool, url: &str, webpage: &Webpage,  user_id: i
         .execute(&conn).await?)
 }
 
-async fn fetch_handler(db_pool: SqlitePool,
+async fn fetch_handler(db_pool: PgPool,
         http_client: reqwest::Client, body: FetchWebpage, user_id: i64) ->
         Result<impl warp::Reply, warp::Rejection> {
 
@@ -103,7 +101,7 @@ async fn fetch_handler(db_pool: SqlitePool,
     }
 }
 
-async fn migrate_db(conn: &SqlitePool) -> Result<(), sqlx::Error> {
+async fn migrate_db(conn: &PgPool) -> Result<(), sqlx::Error> {
     Ok(MIGRATOR.run(conn).await?)
 }
 
@@ -227,14 +225,6 @@ fn setup_args() -> ArgMatches<'static> {
     .get_matches()
 }
 
-async fn create_sqlite_db(db_url: &str) -> Result<(), sqlx::Error> {
-    SqliteConnectOptions::from_str(db_url)?
-        .create_if_missing(true)
-        .connect()
-        .await?;
-    Ok(())
-}
-
 #[tokio::main]
 async fn main() {
     env_logger::builder()
@@ -254,8 +244,7 @@ async fn main() {
         .parse::<u16>().expect("Unable to parse port argument");
     let db_url = args.value_of("database-path")
         .expect("Unable to get database-path argument");
-    create_sqlite_db(db_url).await.expect("Error creating database file");
-    let pool_ = SqlitePool::connect(db_url).await.expect("Unable to get database connection pool");
+    let pool_ = PgPool::connect(db_url).await.expect("Unable to get database connection pool");
     migrate_db(&pool_).await.expect("Unable to migrate database");
     // This db pool is passed to the jwt authorization filter
     let auth_pool = pool_.clone();

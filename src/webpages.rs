@@ -2,7 +2,7 @@ use crate::errors;
 
 use serde::Deserialize;
 use serde::Serialize;
-use sqlx::sqlite::SqlitePool;
+use sqlx::PgPool;
 use warp::http::StatusCode;
 
 #[derive(Serialize,Debug)]
@@ -45,11 +45,11 @@ fn showmode_to_db_table(mode: &ShowMode) -> &str {
     }
 }
 
-pub async fn show_stored_webpage_handler(webpage_id: i64, query_params: ShowOptions, db_pool: SqlitePool, user_id: i64) ->
+pub async fn show_stored_webpage_handler(webpage_id: i64, query_params: ShowOptions, db_pool: PgPool, user_id: i64) ->
         Result<impl warp::Reply, warp::Rejection> {
     let mode = &query_params.mode.unwrap_or(ShowMode::readable);
     let table = showmode_to_db_table(mode);
-    let (response, status_code) = sqlx::query_as::<_, (String,Option<String>,String)>(&format!("SELECT title, image_url, {} FROM webpages WHERE rowid = $1 AND user_id = $2", table))
+    let (response, status_code) = sqlx::query_as::<_, (String,Option<String>,String)>(&format!("SELECT title, image_url, {} FROM webpages WHERE id = $1 AND user_id = $2", table))
         .bind(webpage_id)
         .bind(user_id)
         .fetch_optional(&db_pool).await
@@ -85,9 +85,9 @@ pub async fn show_stored_webpage_handler(webpage_id: i64, query_params: ShowOpti
     Ok(warp::reply::with_status(response, status_code))
 }
 
-pub async fn get_stored_webpages_for_user(db_pool: SqlitePool, user_id: i64) ->
+pub async fn get_stored_webpages_for_user(db_pool: PgPool, user_id: i64) ->
         Result<impl warp::Reply, warp::Rejection> {
-    let (response, status_code) = sqlx::query_as::<_, (i64,String,Option<String>)>("SELECT rowid, title, image_url FROM webpages WHERE user_id = $1")
+    let (response, status_code) = sqlx::query_as::<_, (i64,String,Option<String>)>("SELECT id, title, image_url FROM webpages WHERE user_id = $1")
         .bind(user_id)
         .fetch_all(&db_pool).await
         .map_or_else(|error| {
