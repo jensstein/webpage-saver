@@ -54,7 +54,7 @@ pub async fn show_stored_webpage_handler(webpage_id: i64, query_params: ShowOpti
         .bind(user_id)
         .fetch_optional(&db_pool).await
         .map_or_else(|error| {
-            eprintln!("Error when fetching webpage {}  for user {} from database {}",
+            log::error!("Error when fetching webpage {}  for user {} from database {}",
                 webpage_id, user_id, error);
             let status = StatusCode::INTERNAL_SERVER_ERROR;
             let json = warp::reply::json(&errors::ErrorResponse {
@@ -91,7 +91,7 @@ pub async fn get_stored_webpages_for_user(db_pool: SqlitePool, user_id: i64) ->
         .bind(user_id)
         .fetch_all(&db_pool).await
         .map_or_else(|error| {
-            eprintln!("Error when fetching list of webpages for user {}: {}",
+            log::error!("Error when fetching list of webpages for user {}: {}",
                 user_id, error);
             let status = StatusCode::INTERNAL_SERVER_ERROR;
             let json = warp::reply::json(&errors::ErrorResponse {

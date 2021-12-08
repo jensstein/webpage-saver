@@ -2,6 +2,7 @@ mod auth;
 mod errors;
 mod webpages;
 
+use std::io::Write;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -43,7 +44,6 @@ impl From<reqwest::Error> for FetchError {
 async fn fetch_webpage(http_client: reqwest::Client, url: &str) -> Result<String, FetchError> {
     match http_client.get(url).send().await {
         Ok(response) => {
-            println!("Result {:?}", response);
             if response.status().is_success() {
                 return Ok(response.text().await?);
             } else {
@@ -69,7 +69,6 @@ async fn write_to_db(conn: SqlitePool, url: &str, webpage: &Webpage,  user_id: i
         .bind(&webpage.image_url)
         .bind(user_id)
         .execute(&conn).await?;
-    println!("ASD {} {:?}", url, result);
     Ok(())
 }
 
@@ -86,7 +85,7 @@ async fn fetch_handler(db_pool: SqlitePool,
                 // Err-delen, fordi man ikke kan sende en reference til error ud af funktionen.
                 Ok(_) => return Ok(Response::builder().status(StatusCode::OK).body("".to_string())),
                 Err(error) => {
-                    eprintln!("Error getting database connection: {}", error.to_string());
+                    log::error!("Error getting database connection: {}", error.to_string());
                     return Ok(Response::builder()
                         .status(StatusCode::INTERNAL_SERVER_ERROR)
                         .body("".to_string())
@@ -242,6 +241,18 @@ async fn create_sqlite_db(db_url: &str) -> Result<(), sqlx::Error> {
 
 #[tokio::main]
 async fn main() {
+    env_logger::builder()
+        .format(|buf, record| {
+            let message = serde_json::json!({
+                "level": record.level().to_string(),
+                "message": record.args().as_str().map_or_else(|| {record.args().to_string()}, |s| s.to_string()),
+                "target": record.target().to_string(),
+            });
+            writeln!(buf, "{}", message.to_string())
+        })
+        .filter(None, log::LevelFilter::Info)
+        .target(env_logger::Target::Stdout)
+        .init();
     let args = setup_args();
     let port = args.value_of("port").expect("Unable to get port argument")
         .parse::<u16>().expect("Unable to parse port argument");
@@ -295,7 +306,8 @@ async fn main() {
             .and(pool.clone())
             .and(auth::with_jwt_auth(auth_pool))
             .and_then(auth::extend_jwt_handler));
-    let routes = warp::path("api").and(api_routes).recover(errors::handle_rejection);
+    let routes = warp::path("api").and(api_routes.with(
+        warp::log("article-saver"))).recover(errors::handle_rejection);
     warp::serve(routes).run(([127, 0, 0, 1], port)).await;
 }
 

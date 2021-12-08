@@ -1,5 +1,5 @@
 [package]
-name = "article-server-rs"
+name = "article_server_rs"
 version = "1.0.0"
 edition = "2018"
 
@@ -9,14 +9,17 @@ edition = "2018"
 argon2 = "0.3"
 chrono = "0.4"
 clap = "2.33"
+env_logger = "0.9"
 html5ever = "0.25"
 jsonwebtoken = "7.2"
 kuchiki = "0.8"
 lazy_static = "1.4.0"
+log = "0.4"
 rand = "0.8"
 regex = "1"
 reqwest = "0.11"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 sqlx = {version = "0.5", features = ["runtime-tokio-rustls", "sqlite", "migrate"]}
 tokio = { version = "1", features = ["full"] }
 warp = "0.3"

@@ -128,7 +128,7 @@ pub async fn register_handler(db_pool: SqlitePool, body: User) ->
     let hashed_password = match hash_password(&body.password) {
         Ok(password) => password,
         Err(error) => {
-            eprintln!("Error hashing password for user {}: {}", &body.username, error.to_string());
+            log::error!("Error hashing password for user {}: {}", &body.username, error.to_string());
             return Ok(Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .body("Invalid password".to_string())
@@ -140,7 +140,7 @@ pub async fn register_handler(db_pool: SqlitePool, body: User) ->
             .status(StatusCode::CREATED)
             .body("".to_string())),
         Err(error) => {
-            eprintln!("Error when storing user {}: {}", &body.username, error);
+            log::error!("Error when storing user {}: {}", &body.username, error);
             return Ok(Response::builder()
                 .status(StatusCode::CONFLICT)
                 .body("".to_string())
@@ -181,7 +181,7 @@ pub async fn verify_password_from_database(db_pool: &SqlitePool, username: &str,
                 if let Some(user_id_and_secret) = verify_user_with_password(password, &optional_hashed_pass)? {
                     Ok(Some(user_id_and_secret))
                 } else {
-                    eprintln!("Unable to fetch user info for user {}", username);
+                    log::error!("Unable to fetch user info for user {}", username);
                     Ok(None)
                 }
             })
@@ -192,7 +192,7 @@ pub async fn login_handler(db_pool: SqlitePool, body: User) ->
     let (response, status_code) = verify_password_from_database(&db_pool, &body.username, &body.password)
         .await
         .map_or_else(|error| {
-            eprintln!("Error when verifying password for user {}: {}", &body.username, error);
+            log::error!("Error when verifying password for user {}: {}", &body.username, error);
             let status = StatusCode::INTERNAL_SERVER_ERROR;
             let json = warp::reply::json(&errors::ErrorResponse {
                 message: "Unknown error".to_string(),
@@ -210,7 +210,7 @@ pub async fn login_handler(db_pool: SqlitePool, body: User) ->
                                     (json, StatusCode::OK)
                                 },
                                 Err(error) => {
-                                    eprintln!("Error when creating jwt for user {}: {}", &body.username, error);
+                                    log::error!("Error when creating jwt for user {}: {}", &body.username, error);
                                     let status = StatusCode::INTERNAL_SERVER_ERROR;
                                     let json = warp::reply::json(&errors::ErrorResponse {
                                         message: "Unknown error".to_string(),
@@ -245,7 +245,7 @@ pub fn get_sub_from_jwt_insecure(jwt: &str) -> Option<String> {
             &jwt, &jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS512)) {
         Ok(token) => Some(token.claims.sub),
         Err(error) => {
-            eprintln!("Error decoding jwt {}: {}", jwt, error);
+            log::error!("Error decoding jwt {}: {}", jwt, error);
             None
         }
     }
@@ -273,7 +273,7 @@ pub async fn verify_jwt_handler(db_pool: SqlitePool, jwt_body: JWTRequest)
                 .status(StatusCode::OK)
                 .body("".to_string())),
         Err(error) => {
-            println!("Error {}", error);
+            log::error!("Error when verifying jwt: {}", error);
             Ok(Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body("".to_string()))
@@ -329,7 +329,7 @@ async fn authorize_from_jwt(arg_tuple: (SqlitePool, HeaderMap)) -> Result<i64, w
     let auth_header = match std::str::from_utf8(header.as_bytes()) {
         Ok(auth_header) => auth_header,
         Err(error) => {
-            eprintln!("Error parsing auth header: {}", error);
+            log::error!("Error parsing auth header: {}", error);
             return Err(warp::reject::custom(errors::Error::MissingAuthorizationHeader));
         }
     };
@@ -342,7 +342,7 @@ async fn authorize_from_jwt(arg_tuple: (SqlitePool, HeaderMap)) -> Result<i64, w
             .bind(sub)
             .fetch_optional(&db_pool).await
             .map_or_else(|error| {
-                eprintln!("Error when fetching jwt secret from database: {}", error);
+                log::error!("Error when fetching jwt secret from database: {}", error);
                 return Err(warp::reject::custom(errors::Error::UnknownUser))
             }, |optional_secret| {
                 optional_secret.ok_or_else(|| warp::reject::custom(errors::Error::UnknownUser))
@@ -351,7 +351,7 @@ async fn authorize_from_jwt(arg_tuple: (SqlitePool, HeaderMap)) -> Result<i64, w
                 decode_jwt(&jwt, secret.as_ref())
                     .map_or_else(
                         |error| {
-                            eprintln!("Error when decoding jwt: {}", error);
+                            log::error!("Error when decoding jwt: {}", error);
                             Err(warp::reject::custom(errors::Error::MissingAuthorizationHeader))
                         },
                         |_| Ok(user_id))
@@ -364,7 +364,7 @@ pub async fn extend_jwt_handler(db_pool: SqlitePool, user_id: i64) ->
         .bind(user_id)
         .fetch_optional(&db_pool).await
         .map_or_else(|error| {
-            eprintln!("Error when creating jwt for user {}: {}", user_id, error);
+            log::error!("Error when creating jwt for user {}: {}", user_id, error);
             let status = StatusCode::INTERNAL_SERVER_ERROR;
             let json = warp::reply::json(&errors::ErrorResponse {
                 message: format!("Error creating jwt"),
@@ -382,7 +382,7 @@ pub async fn extend_jwt_handler(db_pool: SqlitePool, user_id: i64) ->
                             (json, StatusCode::OK)
                         },
                         Err(error) => {
-                            eprintln!("Error when creating jwt for user {}: {}", username, error);
+                            log::error!("Error when creating jwt for user {}: {}", username, error);
                             let status = StatusCode::INTERNAL_SERVER_ERROR;
                             let json = warp::reply::json(&errors::ErrorResponse {
                                 message: format!("Error creating jwt: {}", error),
