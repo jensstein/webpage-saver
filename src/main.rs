@@ -3,7 +3,6 @@ mod errors;
 mod webpages;
 
 use std::io::Write;
-use std::path::Path;
 use std::str::FromStr;
 
 use clap::{App,Arg,ArgMatches};
@@ -14,6 +13,9 @@ use sqlx::ConnectOptions;
 use sqlx::sqlite::{SqliteConnectOptions,SqlitePool};
 use warp::Filter;
 use warp::http::{StatusCode,Response};
+
+// Using the migrate! macro embeds the migrations into the binary file
+static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("db/migrations");
 
 // https://blog.joco.dev/posts/warp_auth_server_tutorial/
 
@@ -101,13 +103,8 @@ async fn fetch_handler(db_pool: SqlitePool,
     }
 }
 
-async fn migrate_db(migrations_path: &str, conn: &SqlitePool) -> Result<(), sqlx::Error> {
-    // The migration files must be called {VERSION}_{DESCRIPTION}.sql
-    // https://docs.rs/sqlx-core/0.5.9/src/sqlx_core/migrate/source.rs.html#10-12
-    let migrator = sqlx::migrate::Migrator::new(
-        Path::new(migrations_path)).await?;
-    migrator.run(conn).await.expect("Error running migrations");
-    Ok(())
+async fn migrate_db(conn: &SqlitePool) -> Result<(), sqlx::Error> {
+    Ok(MIGRATOR.run(conn).await?)
 }
 
 #[derive(Debug)]
@@ -259,7 +256,7 @@ async fn main() {
         .expect("Unable to get database-path argument");
     create_sqlite_db(db_url).await.expect("Error creating database file");
     let pool_ = SqlitePool::connect(db_url).await.expect("Unable to get database connection pool");
-    migrate_db("db/migrations", &pool_).await.expect("Unable to migrate database");
+    migrate_db(&pool_).await.expect("Unable to migrate database");
     // This db pool is passed to the jwt authorization filter
     let auth_pool = pool_.clone();
     let pool = warp::any().map(move|| pool_.clone());
