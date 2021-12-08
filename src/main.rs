@@ -60,16 +60,15 @@ async fn fetch_webpage(http_client: reqwest::Client, url: &str) -> Result<String
 }
 
 async fn write_to_db(conn: SqlitePool, url: &str, webpage: &Webpage,  user_id: i64) ->
-        Result<(), sqlx::Error> {
-    let result = sqlx::query("INSERT INTO webpages(url, title, text, html, image_url, user_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+        Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+    Ok(sqlx::query("INSERT INTO webpages(url, title, text, html, image_url, user_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
         .bind(url)
         .bind(&webpage.title)
         .bind(&webpage.contents)
         .bind(&webpage.original_html)
         .bind(&webpage.image_url)
         .bind(user_id)
-        .execute(&conn).await?;
-    Ok(())
+        .execute(&conn).await?)
 }
 
 async fn fetch_handler(db_pool: SqlitePool,
@@ -83,7 +82,7 @@ async fn fetch_handler(db_pool: SqlitePool,
                 // Return-typen bestemmes af Responsens body, så hvis den er String det ene sted,
                 // skal den også være String det andet. Og den er nødt til at være String i
                 // Err-delen, fordi man ikke kan sende en reference til error ud af funktionen.
-                Ok(_) => return Ok(Response::builder().status(StatusCode::OK).body("".to_string())),
+                Ok(_) => return Ok(Response::builder().status(StatusCode::CREATED).body("".to_string())),
                 Err(error) => {
                     log::error!("Error getting database connection: {}", error.to_string());
                     return Ok(Response::builder()
