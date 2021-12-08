@@ -10,12 +10,15 @@ struct WebpagesRow {
     text: String,
     html: String,
     image_url: Option<String>,
-    user_id: i64
+    user_id: i64,
+    added: String,
 }
 
 impl std::cmp::PartialEq for WebpagesRow {
     fn eq(&self, other: &Self) -> bool {
-        (self.url == other.url) && (self.text == other.text) && (self.html == other.html)
+        (self.url == other.url) && (self.text == other.text) &&
+            (self.html == other.html) && (self.title == other.title) &&
+            (self.image_url == other.image_url) && (self.user_id == self.user_id)
     }
 }
 
@@ -36,7 +39,7 @@ async fn test_database_migration() {
     sqlx::query("INSERT INTO users VALUES(1, 'user', '$argon2id$v=19$m=4096,t=3,p=1$ewSM8Hmctto5QHVv27S1cA$o6GeMd3PriFhi2CalkBmG1cV/AMi+ry0r/6fjmeSaFQ')")
         .execute(&conn)
         .await.expect("Unable to insert into database");
-    sqlx::query("INSERT INTO webpages VALUES('url', 'text', 'html', 1, 'title', 'image.url')")
+    sqlx::query("INSERT INTO webpages(url, text, html, user_id, title, image_url) VALUES('url', 'text', 'html', 1, 'title', 'image.url')")
         .execute(&conn)
         .await.expect("Unable to insert into database");
     let rows = sqlx::query("SELECT * FROM webpages")
@@ -48,6 +51,7 @@ async fn test_database_migration() {
                 user_id: row.get(3),
                 title: row.get(4),
                 image_url: row.get(5),
+                added: row.get(6),
             }
         })
         .fetch_all(&conn).await.expect("Error fetching rows from database");
@@ -58,6 +62,7 @@ async fn test_database_migration() {
         html: "html".to_string(),
         user_id: 1,
         title: "title".to_string(),
-        image_url: Some("image.url".to_string())
+        image_url: Some("image.url".to_string()),
+        added: "".to_string(),
     });
 }
