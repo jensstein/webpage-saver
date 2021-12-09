@@ -1,3 +1,13 @@
+services:
+  - postgres:14-alpine
+
+variables:
+  POSTGRES_USER: article-saver
+  POSTGRES_DB: article-saver
+  POSTGRES_PASSWORD: article-saver
+  POSTGRES_HOST_AUTH_METHOD: trust
+  TEST_DB: postgresql://article-saver:article-saver@postgres:5432/article-saver
+
 stages:
   - test
   - cargo:test:nightly
@@ -9,7 +19,6 @@ include:
 .install_openssl: &install_openssl |
   apt-get update
   apt-get install -y pkg-config libssl-dev
-
 
 test:cargo:
   image: rust:1.57-slim-bullseye
