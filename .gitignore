@@ -1,2 +1,7 @@
 /target
 *.swp
+
+# next.js client
+.next
+.env.local
+node_modules
