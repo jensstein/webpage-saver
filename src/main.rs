@@ -2,6 +2,7 @@ mod auth;
 mod errors;
 mod webpages;
 
+use std::net::SocketAddr;
 use std::io::Write;
 
 use clap::{App,Arg,ArgMatches};
@@ -228,7 +229,7 @@ fn setup_args() -> ArgMatches<'static> {
 #[derive(Clone)]
 struct ServerArgs {
     pool: PgPool,
-    port: u16,
+    addr: SocketAddr,
 }
 
 async fn start_server(args: ServerArgs) {
@@ -282,7 +283,7 @@ async fn start_server(args: ServerArgs) {
             .and_then(auth::extend_jwt_handler));
     let routes = warp::path("api").and(api_routes.with(
         warp::log("article-saver"))).recover(errors::handle_rejection);
-    warp::serve(routes).run(([127, 0, 0, 1], args.port)).await;
+    warp::serve(routes).run(args.addr).await;
 }
 
 #[tokio::main]
@@ -308,7 +309,7 @@ async fn main() {
     migrate_db(&pool).await.expect("Unable to migrate database");
     let server_args = ServerArgs {
         pool,
-        port,
+        addr: ([127, 0, 0, 1], port).into(),
     };
     start_server(server_args).await;
 }
