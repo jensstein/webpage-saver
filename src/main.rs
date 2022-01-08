@@ -225,30 +225,19 @@ fn setup_args() -> ArgMatches<'static> {
     .get_matches()
 }
 
-#[tokio::main]
-async fn main() {
-    env_logger::builder()
-        .format(|buf, record| {
-            let message = serde_json::json!({
-                "level": record.level().to_string(),
-                "message": record.args().as_str().map_or_else(|| {record.args().to_string()}, |s| s.to_string()),
-                "target": record.target().to_string(),
-            });
-            writeln!(buf, "{}", message.to_string())
-        })
-        .filter(None, log::LevelFilter::Info)
-        .target(env_logger::Target::Stdout)
-        .init();
-    let args = setup_args();
-    let port = args.value_of("port").expect("Unable to get port argument")
-        .parse::<u16>().expect("Unable to parse port argument");
-    let db_url = args.value_of("database-path")
-        .expect("Unable to get database-path argument");
-    let pool_ = PgPool::connect(db_url).await.expect("Unable to get database connection pool");
-    migrate_db(&pool_).await.expect("Unable to migrate database");
+#[derive(Clone)]
+struct ServerArgs {
+    pool: PgPool,
+    port: u16,
+}
+
+async fn start_server(args: ServerArgs) {
+    // an intermediary cloned pool to avoid moving the whole ServerArgs struct which would make it
+    // impossible to borrow it again later in the function.
+    let cloned_pool = args.pool.clone();
+    let pool = warp::any().map(move|| cloned_pool.clone());
     // This db pool is passed to the jwt authorization filter
-    let auth_pool = pool_.clone();
-    let pool = warp::any().map(move|| pool_.clone());
+    let auth_pool = args.pool.clone();
     let http_client = warp::any().map(move|| reqwest::Client::new());
     let api_routes = warp::post()
             .and(warp::path("fetch"))
@@ -293,7 +282,35 @@ async fn main() {
             .and_then(auth::extend_jwt_handler));
     let routes = warp::path("api").and(api_routes.with(
         warp::log("article-saver"))).recover(errors::handle_rejection);
-    warp::serve(routes).run(([127, 0, 0, 1], port)).await;
+    warp::serve(routes).run(([127, 0, 0, 1], args.port)).await;
+}
+
+#[tokio::main]
+async fn main() {
+    env_logger::builder()
+        .format(|buf, record| {
+            let message = serde_json::json!({
+                "level": record.level().to_string(),
+                "message": record.args().as_str().map_or_else(|| {record.args().to_string()}, |s| s.to_string()),
+                "target": record.target().to_string(),
+            });
+            writeln!(buf, "{}", message.to_string())
+        })
+        .filter(None, log::LevelFilter::Info)
+        .target(env_logger::Target::Stdout)
+        .init();
+    let args = setup_args();
+    let port = args.value_of("port").expect("Unable to get port argument")
+        .parse::<u16>().expect("Unable to parse port argument");
+    let db_url = args.value_of("database-path")
+        .expect("Unable to get database-path argument");
+    let pool = PgPool::connect(db_url).await.expect("Unable to get database connection pool");
+    migrate_db(&pool).await.expect("Unable to migrate database");
+    let server_args = ServerArgs {
+        pool,
+        port,
+    };
+    start_server(server_args).await;
 }
 
 #[cfg(test)]
