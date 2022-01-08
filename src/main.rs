@@ -31,6 +31,3 @@ async fn main() {
     };
     start_server(server_args).await;
 }
-
-#[cfg(test)]
-mod test_main;
