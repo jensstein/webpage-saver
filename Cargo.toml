@@ -29,3 +29,5 @@ warp = "0.3"
 
 [dev-dependencies]
 zxcvbn = "2"
+# Sharing test utility code between different tests: https://stackoverflow.com/a/44545091
+test_utils = {path = "test-utils"}
