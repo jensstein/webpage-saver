@@ -6,7 +6,7 @@ variables:
   POSTGRES_DB: article-saver
   POSTGRES_PASSWORD: article-saver
   POSTGRES_HOST_AUTH_METHOD: trust
-  TEST_DB: postgresql://article-saver:article-saver@postgres:5432/article-saver
+  TEST_DB: postgresql://article-saver:article-saver@postgres:5432
 
 stages:
   - test

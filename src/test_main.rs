@@ -1,5 +1,6 @@
 use super::*;
 
+use rand::Rng;
 use sqlx::PgPool;
 use sqlx::Row;
 
@@ -35,10 +36,7 @@ fn test_traverse_document() {
 
 #[tokio::test]
 async fn test_database_migration() {
-    let conn = PgPool::connect(
-        &std::env::var("TEST_DB").expect("`TEST_DB` variable not set")).await
-        .expect("Unable to open database in memory");
-    migrate_db(&conn).await.expect("Unable to migrate database");
+    let conn = create_db().await;
     sqlx::query("INSERT INTO users VALUES(1, 'user', '$argon2id$v=19$m=4096,t=3,p=1$ewSM8Hmctto5QHVv27S1cA$o6GeMd3PriFhi2CalkBmG1cV/AMi+ry0r/6fjmeSaFQ')")
         .execute(&conn)
         .await.expect("Unable to insert into database");
@@ -73,4 +71,27 @@ async fn test_database_migration() {
         added: chrono::Local::now(),
     });
     assert_eq!(rows[0].added > before && rows[0].added < after, true);
+}
+
+// This function creates a new database with a random name in order to run each test in a
+// separate environment.
+async fn create_db() -> PgPool {
+    let connection_string = std::env::var("TEST_DB").expect("`TEST_DB` variable not set");
+    let root_conn = PgPool::connect(&format!("{}/postgres", connection_string)).await
+        .expect("Unable to open postgres database");
+    let charset: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
+    let mut rng = rand::thread_rng();
+    let db_name = (0..10).map(|_| {
+        let idx = rng.gen_range(0..charset.len());
+        charset[idx]
+    }).collect();
+    let db_name = String::from_utf8(db_name).expect("Unable to generate random db name");
+    sqlx::query(&format!("CREATE DATABASE {}", db_name))
+        .execute(&root_conn)
+        .await
+        .expect("Unable to create new database");
+    let conn = PgPool::connect(&format!("{}/{}", connection_string, db_name)).await
+        .expect("Unable to open created database");
+    migrate_db(&conn).await.expect("Unable to migrate database");
+    conn
 }
