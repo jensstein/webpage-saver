@@ -231,7 +231,7 @@ pub struct ServerArgs {
     pub addr: SocketAddr,
 }
 
-pub async fn start_server(args: ServerArgs) {
+pub fn start_server(args: ServerArgs) -> impl std::future::Future<Output = ()> + 'static {
     // an intermediary cloned pool to avoid moving the whole ServerArgs struct which would make it
     // impossible to borrow it again later in the function.
     let cloned_pool = args.pool.clone();
@@ -282,7 +282,7 @@ pub async fn start_server(args: ServerArgs) {
             .and_then(auth::extend_jwt_handler));
     let routes = warp::path("api").and(api_routes.with(
         warp::log("article-saver"))).recover(errors::handle_rejection);
-    warp::serve(routes).run(args.addr).await;
+    warp::serve(routes).bind(args.addr)
 }
 
 #[cfg(test)]

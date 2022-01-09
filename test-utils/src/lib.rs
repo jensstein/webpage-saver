@@ -1,4 +1,5 @@
-use rand::Rng;
+use rand::{SeedableRng,Rng};
+use rand::rngs::StdRng;
 use sqlx::PgPool;
 
 // This function creates a new database with a random name in order to run each test in a
@@ -8,7 +9,7 @@ pub async fn create_db() -> PgPool {
     let root_conn = PgPool::connect(&format!("{}/postgres", connection_string)).await
         .expect("Unable to open postgres database");
     let charset: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
-    let mut rng = rand::thread_rng();
+    let mut rng = StdRng::from_entropy();
     let db_name = (0..10).map(|_| {
         let idx = rng.gen_range(0..charset.len());
         charset[idx]
