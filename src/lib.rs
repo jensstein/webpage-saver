@@ -210,8 +210,20 @@ fn validate_int_arg(v: String) -> Result<(), String> {
     }
 }
 
+fn validate_host_arg(v: String) -> Result<(), String> {
+    match format!("{}:0", v).parse::<SocketAddr>() {
+        Ok(_) => Ok(()),
+        Err(error) => Err(format!("Error parsing {} as a hostname: {}", v, error))
+    }
+}
+
 pub fn setup_args() -> ArgMatches<'static> {
     App::new("article-server")
+        .arg(Arg::with_name("host")
+            .long("--host")
+            .help("Host address to start service on")
+            .validator(validate_host_arg)
+            .default_value("127.0.0.1"))
         .arg(Arg::with_name("port")
             .short("-p")
             .long("--port")

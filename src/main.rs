@@ -21,13 +21,16 @@ async fn main() {
     let args = setup_args();
     let port = args.value_of("port").expect("Unable to get port argument")
         .parse::<u16>().expect("Unable to parse port argument");
+    let host = args.value_of("host").expect("Unable to get host argument");
+    let service_address_str = format!("{}:{}", host, port);
     let db_url = args.value_of("database-path")
         .expect("Unable to get database-path argument");
     let pool = PgPool::connect(db_url).await.expect("Unable to get database connection pool");
     migrate_db(&pool).await.expect("Unable to migrate database");
     let server_args = ServerArgs {
         pool,
-        addr: ([127, 0, 0, 1], port).into(),
+        addr: service_address_str.parse().expect(
+            &format!("Unable to parse {} as a socket address", service_address_str)),
     };
     start_server(server_args).await;
 }
