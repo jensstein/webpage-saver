@@ -223,7 +223,7 @@ pub fn setup_args() -> ArgMatches<'static> {
             .long("--host")
             .help("Host address to start service on")
             .validator(validate_host_arg)
-            .default_value("127.0.0.1"))
+            .default_value("0.0.0.0"))
         .arg(Arg::with_name("port")
             .short("-p")
             .long("--port")
