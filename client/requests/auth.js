@@ -12,6 +12,17 @@ export async function login(username, password) {
     });
 }
 
+export async function logout() {
+    return new Promise((resolve, reject) => {
+        axios.get("/api/logout")
+            .then(data => {
+                return resolve();
+            }).catch(error => {
+                return reject(`Logout failed: ${error}`);
+            });
+    });
+}
+
 export async function verify_jwt(token) {
     const decoded = jwt.decode(token);
     return axios.post("/api/verify-jwt", {username: decoded.sub, "jwt": token})

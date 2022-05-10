@@ -1,13 +1,9 @@
-import nookies from "nookies";
+import { remove_cookie } from "../../helpers/cookies.js";
 
 export default async function handler(req, res) {
-    nookies.set({res}, "jwt", "removed", {
-        path: "/",
-        httpOnly: true,
-        secure: true,
-        sameSite: "Strict",
-        // maxAge: 0 makes the cookies get deleted immediately
-        maxAge: "0",
+    return new Promise((resolve, reject) => {
+        remove_cookie({res}, "jwt");
+        res.status(200).send();
+        resolve();
     });
-    res.status(200).send();
 }

@@ -7,3 +7,7 @@ export function get_jwt(request) {
     }
     return jwt;
 }
+
+export function remove_cookie(context, name) {
+    nookies.destroy(context, name, {path: "/"});
+}
