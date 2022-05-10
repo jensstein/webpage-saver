@@ -17,15 +17,18 @@ function MyApp({ Component, pageProps }) {
     // here if you make a mistake.
     // https://dmitripavlutin.com/react-useeffect-infinite-loop/
     useEffect(() => {
+        const path = router.asPath.split("?")[0];
         const remove_jwt = () => {
             logout().then(() => {
                 setAuthorized(false);
-                router.push({pathname: "/login", query: {returnUrl: router.asPath.split("?")[0]}});
+                sendToLogin(path);
             })
             .catch(_ => console.log("Logout failed"));
         };
         const {jwt} = pageProps;
-        if(jwt) {
+        if(authorized) {
+            return;
+        } else if(jwt) {
             verify_jwt(jwt).then(is_verified => {
                 if(!is_verified) {
                     remove_jwt();
@@ -35,23 +38,14 @@ function MyApp({ Component, pageProps }) {
             }).catch(_ => {
                 remove_jwt();
             })
-        }
-        authCheck(router.asPath);
-        router.events.on("routeChangeComplete", authCheck)
-        return () => {
-            router.events.off("routeChangeComplete", authCheck);
+        } else {
+            sendToLogin(path);
         }
     }, [authorized, pageProps]);
 
-    function authCheck(url) {
-        if(authorized) {
-            return;
-        }
-        const path = url.split("?")[0];
-        const {jwt} = pageProps;
-        if((jwt === null || jwt === undefined) && path != "/login") {
-            // router.asPath doesn't work down here, for dynamic routes it shows "/show/[id]" instead of "/show/1".
-            router.push({pathname: "/login", query: {returnUrl: path}});
+    function sendToLogin(path) {
+        if(path != "/login") {
+            router.push({pathname: "/login", query: {returnUrl: router.asPath.split("?")[0]}});
         }
     }
 
