@@ -6,13 +6,16 @@ import LinksContainer from "../components/links-container.js";
 import LoadingError from "../components/loading-error.js";
 import Loading from "../components/loading.js";
 import WebpageLink from "../components/webpage-link.js";
+import WebpageFetch from "../components/webpage-fetch.js";
 
 import {get_jwt} from "../helpers/cookies.js";
 
 import Link from "next/link";
-import useSWR from "swr";
+import useSWR, {useSWRConfig} from "swr";
 
 export default function Home({jwt}) {
+    const { mutate } = useSWRConfig();
+
     const fetcher = url => {
         if(jwt === null || jwt === undefined) {
             return {};
@@ -22,6 +25,9 @@ export default function Home({jwt}) {
     const {data, error} = useSWR("/api/list-webpages", fetcher, {
         revalidateOnFocus: false,
     });
+
+    // https://swr.bootcss.com/en-US/docs/mutation
+    const revalidateCallback = () => mutate("/api/list-webpages");
 
     if(error) {
         return (
@@ -48,6 +54,7 @@ export default function Home({jwt}) {
                 <Header/>
                 <h1 className={styles.title}>Article saver</h1>
             </main>
+            <WebpageFetch jwt={jwt} revalidateCallback={revalidateCallback}/>
             <LinksContainer>
                 {webpage_ids}
             </LinksContainer>
