@@ -31,7 +31,7 @@ export default function ShowStoredWebpage({jwt}) {
             <Header/>
             <div className={styles.webpage_container}>
                 <h1>{data.title}</h1>
-                <div dangerouslySetInnerHTML={{__html: data.content}}/>
+                <div id={styles.content} dangerouslySetInnerHTML={{__html: data.content}}/>
             </div>
         </>
     )

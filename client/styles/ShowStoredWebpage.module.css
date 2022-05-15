@@ -1,3 +1,10 @@
 .webpage_container {
     padding-top: 2em;
 }
+
+#content {
+	max-width: 45em;
+	margin: 0 auto;
+	line-height: 1.7em;
+	font-family: sans-serif;
+}
