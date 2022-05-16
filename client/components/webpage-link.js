@@ -18,9 +18,9 @@ export default function WebpageLink({href, title, image_url}) {
     return (
         <>
             <div className="col-lg-3" onClick={onClick}>
-                <div className={styles.box}>
+                <div className={styles.box + " border rounded border-2"}>
                     <img className={styles.thumbnail} src={image_url}/>
-                    <Link href={href}><p>{title}</p></Link>
+                    <Link href={href}><p className={styles.link_title}>{title}</p></Link>
                 </div>
             </div>
         </>
