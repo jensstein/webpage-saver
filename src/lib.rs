@@ -261,7 +261,7 @@ pub fn start_server(args: ServerArgs) -> impl std::future::Future<Output = ()> +
         .or(
             warp::get().and(warp::path("status")).map(|| "OK"))
         .or(warp::get()
-            .and(warp::path("show-webpage"))
+            .and(warp::path("webpage"))
             .and(warp::path::param())
             .and(warp::query::<webpages::ShowOptions>())
             .and(pool.clone())
