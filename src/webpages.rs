@@ -85,6 +85,20 @@ pub async fn show_stored_webpage_handler(webpage_id: i64, query_params: ShowOpti
     Ok(warp::reply::with_status(response, status_code))
 }
 
+pub async fn delete_stored_webpage_handler(webpage_id: i64, db_pool: PgPool, user_id: i64) ->
+        Result<impl warp::Reply, warp::Rejection> {
+    match sqlx::query("DELETE FROM webpages WHERE id = $1 AND user_id = $2")
+            .bind(webpage_id)
+            .bind(user_id)
+            .execute(&db_pool).await {
+        Ok(_) => Ok(StatusCode::NO_CONTENT),
+        Err(error) => {
+            log::error!("Error when deleting webpage id {} for user {}: {}", webpage_id, user_id, error);
+            Ok(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
 pub async fn get_stored_webpages_for_user(db_pool: PgPool, user_id: i64) ->
         Result<impl warp::Reply, warp::Rejection> {
     let (response, status_code) = sqlx::query_as::<_, (i64,String,Option<String>)>("SELECT id, title, image_url FROM webpages WHERE user_id = $1")

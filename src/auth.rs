@@ -26,7 +26,7 @@ impl std::fmt::Display for AuthError {
 }
 
 #[derive(Debug,Clone)]
-struct AuthConfigError {
+pub struct AuthConfigError {
     message: String
 }
 
@@ -287,7 +287,7 @@ struct Claims {
     exp: usize,
 }
 
-fn create_jwt(username: &str, secret: &[u8], expiration_in_seconds: i64) -> Result<String, AuthConfigError> {
+pub fn create_jwt(username: &str, secret: &[u8], expiration_in_seconds: i64) -> Result<String, AuthConfigError> {
     let experiation = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::seconds(expiration_in_seconds))
             .ok_or_else(|| AuthConfigError {

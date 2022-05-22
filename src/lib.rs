@@ -1,4 +1,4 @@
-mod auth;
+pub mod auth;
 mod errors;
 mod webpages;
 
@@ -267,6 +267,12 @@ pub fn start_server(args: ServerArgs) -> impl std::future::Future<Output = ()> +
             .and(pool.clone())
             .and(auth::with_jwt_auth(auth_pool.clone()))
             .and_then(webpages::show_stored_webpage_handler))
+        .or(warp::delete()
+            .and(warp::path("webpage"))
+            .and(warp::path::param())
+            .and(pool.clone())
+            .and(auth::with_jwt_auth(auth_pool.clone()))
+            .and_then(webpages::delete_stored_webpage_handler))
         .or(warp::get()
             .and(warp::path("list-stored-webpages"))
             .and(pool.clone())

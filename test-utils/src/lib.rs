@@ -1,3 +1,5 @@
+use std::io::BufRead;
+
 use rand::{SeedableRng,Rng};
 use rand::rngs::StdRng;
 use sqlx::PgPool;
@@ -22,4 +24,21 @@ pub async fn create_db() -> PgPool {
     let conn = PgPool::connect(&format!("{}/{}", connection_string, db_name)).await
         .expect("Unable to open created database");
     conn
+}
+
+pub async fn execute_sql_from_file(path: &str, pool: &PgPool) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let file = std::fs::File::open(path).expect(&format!("Error reading {}", path));
+    let lines: Vec<String> = std::io::BufReader::new(file).lines().map(|l| l.expect("Error reading line")).collect();
+    let mut builder = sqlx::QueryBuilder::<sqlx::Postgres>::new("");
+    for line in lines {
+        builder.push(&line);
+        if line.trim_end().ends_with(";") {
+            let q = builder.build();
+            q.execute(&mut tx).await?;
+            builder.reset();
+        }
+    }
+    tx.commit().await?;
+    Ok(())
 }
