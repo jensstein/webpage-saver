@@ -5,3 +5,5 @@
 .next
 .env.local
 node_modules
+
+scripts/envs
