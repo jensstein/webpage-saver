@@ -8,3 +8,9 @@
 	line-height: 1.7em;
 	font-family: sans-serif;
 }
+
+#wrapper {
+    display: flex;
+    width: 100%;
+    align-items: stretch;
+}

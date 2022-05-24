@@ -3,6 +3,7 @@ import styles from "../../styles/ShowStoredWebpage.module.css";
 import Header from "../../components/header.js";
 import LoadingError from "../../components/loading-error.js";
 import Loading from "../../components/loading.js";
+import Sidebar from "../../components/sidebar.js";
 
 import {get_jwt} from "../../helpers/cookies.js";
 
@@ -29,9 +30,12 @@ export default function ShowStoredWebpage({jwt}) {
     return (
         <>
             <Header/>
-            <div className={styles.webpage_container}>
-                <h1>{data.title}</h1>
-                <div id={styles.content} dangerouslySetInnerHTML={{__html: data.content}}/>
+            <div id={styles.wrapper}>
+                <Sidebar jwt={jwt}/>
+                <div className={styles.webpage_container}>
+                    <h1>{data.title}</h1>
+                    <div id={styles.content} dangerouslySetInnerHTML={{__html: data.content}}/>
+                </div>
             </div>
         </>
     )

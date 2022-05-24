@@ -1,4 +1,4 @@
-html, body {
+body {
     padding: 0 2rem;
     margin: 0;
 }
@@ -16,4 +16,11 @@ img {
 * {
     box-sizing: border-box;
     background-color: ##fffce5;
+}
+
+@media (max-width: 768px) {
+    body {
+        padding: 0;
+        margin: 0;
+    }
 }
