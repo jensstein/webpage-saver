@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use clap::{App,Arg,ArgMatches};
 use html5ever::tendril::TendrilSink;
 use kuchiki::iter::NodeIterator;
-use serde::Deserialize;
+use serde::{Deserialize,Serialize};
 use sqlx::PgPool;
 use warp::Filter;
 use warp::http::{StatusCode,Response};
@@ -99,6 +99,30 @@ async fn fetch_handler(db_pool: PgPool,
             );
         }
     }
+}
+
+#[derive(Serialize,Debug)]
+struct UserInfo {
+    username: String,
+}
+
+async fn userinfo_handler(db_pool: PgPool, user_id: i64) ->
+        Result<impl warp::Reply, warp::Rejection> {
+    sqlx::query_as::<_, (String,)>("select username from users where id = $1")
+            .bind(user_id)
+            .fetch_optional(&db_pool).await
+            .map_or_else(|error| {
+                log::error!("Error when fetching user from database: {}", error);
+                return Err(warp::reject::custom(errors::Error::UnknownUser))
+            }, |optional_user| {
+                optional_user.ok_or_else(|| warp::reject::custom(errors::Error::UnknownUser))
+            })
+            .and_then(|(username,)| {
+                let json = warp::reply::json(&UserInfo {
+                    username,
+                });
+                Ok(warp::reply::with_status(json, StatusCode::OK))
+            })
 }
 
 pub async fn migrate_db(conn: &PgPool) -> Result<(), sqlx::Error> {
@@ -296,8 +320,13 @@ pub fn start_server(args: ServerArgs) -> impl std::future::Future<Output = ()> +
         .or(warp::get()
             .and(warp::path("extend-jwt"))
             .and(pool.clone())
+            .and(auth::with_jwt_auth(auth_pool.clone()))
+            .and_then(auth::extend_jwt_handler))
+        .or(warp::get()
+            .and(warp::path("userinfo"))
+            .and(pool.clone())
             .and(auth::with_jwt_auth(auth_pool))
-            .and_then(auth::extend_jwt_handler));
+            .and_then(userinfo_handler));
     let routes = warp::path("api").and(api_routes.with(
         warp::log("article-saver"))).recover(errors::handle_rejection);
     warp::serve(routes).bind(args.addr)
