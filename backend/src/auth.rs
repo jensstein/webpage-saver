@@ -60,6 +60,22 @@ pub struct User {
     pub password: String,
 }
 
+#[derive(sqlx::Type, Debug, Eq, PartialEq)]
+#[sqlx(rename_all = "lowercase")]
+pub enum Role {
+    Admin,
+    User,
+}
+
+// Enable sqlx to convert an array of the custom user_role type to a Vec<Role>
+impl sqlx::postgres::PgHasArrayType for Role {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        // Why does it need an underscore in front of the name when that's not part of the type
+        // definition in postgres?
+        sqlx::postgres::PgTypeInfo::with_name("_user_role")
+    }
+}
+
 #[derive(Deserialize,Debug)]
 pub struct JWTRequest {
     pub username: String,
@@ -100,7 +116,7 @@ async fn store_new_user_with_jwt_secret(db_pool: PgPool, username: &str, hashed_
     let generated_jwt_secret = generate_random_string();
     Ok(sqlx::query("
 WITH new_user AS (
-    INSERT INTO users(username, password_hash) VALUES($1, $2) RETURNING id
+    INSERT INTO users(username, password_hash, roles) VALUES($1, $2, '{user}') RETURNING id
     )
 INSERT INTO jwt_secrets(secret, user_id) (SELECT $3, id FROM new_user)
 ")

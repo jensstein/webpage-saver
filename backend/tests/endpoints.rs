@@ -4,7 +4,7 @@ use sqlx::PgPool;
 
 use test_utils::{create_db, execute_sql_from_file};
 
-use article_server_rs::{migrate_db,ServerArgs,start_server, auth::create_jwt};
+use article_server_rs::{migrate_db,ServerArgs,start_server, auth::create_jwt, auth::Role};
 
 struct TestResources {
     addr: SocketAddr,
@@ -51,6 +51,27 @@ async fn test_delete_webpage() {
     let results = sqlx::query_as::<_, (String, String)>("SELECT url, title FROM webpages WHERE id = 1")
         .fetch_optional(&test_resources.pool).await.expect("Unable to query for webpage after deleting");
     assert_eq!(results.is_some(), false);
+}
+
+#[tokio::test]
+async fn test_register_user() {
+    let test_resources = start_test_server().await;
+    let users_pre = sqlx::query_as::<_, (i64,)>("select count(id) from users")
+        .fetch_one(&test_resources.pool).await.expect("Unable to get user count before registering");
+    assert_eq!(users_pre.0, 1);
+    let client = reqwest::Client::new();
+    let response = client.post(format!("http://{}:{}/api/register",
+            test_resources.addr.ip(), test_resources.addr.port()))
+        .body(serde_json::json!({"username": "new-user", "password": "Password123"}).to_string())
+        .send()
+        .await
+        .expect("Error sending request to server");
+    assert_eq!(response.status().is_success(), true);
+    let users_post = sqlx::query_as::<_, (String, Vec<Role>)>("select username, roles from users where username = 'new-user'")
+        .fetch_one(&test_resources.pool).await.expect("Unable to get user count before registering");
+    assert_eq!(users_post.0, "new-user");
+    assert_eq!(users_post.1.len(), 1);
+    assert_eq!(users_post.1[0], Role::User);
 }
 
 async fn start_test_server() -> TestResources {
