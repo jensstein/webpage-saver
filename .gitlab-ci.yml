@@ -25,6 +25,7 @@ test:cargo:
   stage: test
   script:
     - *install_openssl
+    - cd backend
     - cargo test
 
 cargo:test:nightly:
@@ -32,5 +33,6 @@ cargo:test:nightly:
   stage: cargo:test:nightly
   script:
     - *install_openssl
+    - cd backend
     - cargo test
   allow_failure: true
