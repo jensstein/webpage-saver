@@ -6,5 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+env_logger = "0.9"
+log = "0.4"
 rand = "0.8"
 sqlx = {version = "0.5", features = ["runtime-tokio-rustls", "postgres", "migrate", "chrono"]}

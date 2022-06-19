@@ -2010,6 +2010,8 @@ dependencies = [
 name = "test_utils"
 version = "0.1.0"
 dependencies = [
+ "env_logger",
+ "log",
  "rand 0.8.5",
  "sqlx",
 ]

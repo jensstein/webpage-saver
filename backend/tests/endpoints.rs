@@ -2,7 +2,7 @@ use std::net::{SocketAddr,TcpListener};
 
 use sqlx::PgPool;
 
-use test_utils::{create_db, execute_sql_from_file};
+use test_utils::{create_db, execute_sql_from_file, init_logging};
 
 use article_server_rs::{migrate_db,ServerArgs,start_server, auth::create_jwt, auth::Role};
 
@@ -75,6 +75,7 @@ async fn test_register_user() {
 }
 
 async fn start_test_server() -> TestResources {
+    init_logging();
     let addr = get_address();
     let pool = create_db().await;
     let cloned_pool = pool.clone();

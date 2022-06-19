@@ -4,6 +4,16 @@ use rand::{SeedableRng,Rng};
 use rand::rngs::StdRng;
 use sqlx::PgPool;
 
+// It would probably be nice to have this function as a procedural macro, but then the lib wouldn't
+// be able to export any non-macro functions due to having the proc-macro type.
+// So writing it as a macro would introduce a bit too much code overhead compared to its
+// usefulness.
+// https://doc.rust-lang.org/reference/procedural-macros.html#attribute-macros
+// https://stackoverflow.com/a/56714256
+pub fn init_logging() {
+    let _ = env_logger::builder().filter_level(log::LevelFilter::Debug).is_test(true).try_init();
+}
+
 // This function creates a new database with a random name in order to run each test in a
 // separate environment.
 pub async fn create_db() -> PgPool {
