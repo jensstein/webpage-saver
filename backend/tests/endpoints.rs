@@ -36,7 +36,7 @@ async fn test_status() {
 #[tokio::test]
 async fn test_delete_webpage() {
     let test_resources = start_test_server().await;
-    execute_sql_from_file("tests/data/delete-webpage.sql", &test_resources.pool).await.expect("Unable to insert webpages");
+    execute_sql_from_file("tests/data/insert-webpage.sql", &test_resources.pool).await.expect("Unable to insert webpages");
     let results = sqlx::query_as::<_, (String, String)>("SELECT url, title FROM webpages WHERE id = 1")
         .fetch_optional(&test_resources.pool).await.expect("Unable to query for webpage prior to deleting");
     assert_eq!(results.is_some(), true);
