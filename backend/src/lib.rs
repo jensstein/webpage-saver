@@ -1,6 +1,6 @@
 pub mod auth;
 mod errors;
-mod webpages;
+pub mod webpages;
 
 use std::net::SocketAddr;
 

@@ -4,7 +4,9 @@ use sqlx::PgPool;
 
 use test_utils::{create_db, execute_sql_from_file, init_logging};
 
-use article_server_rs::{migrate_db,ServerArgs,start_server, auth::create_jwt, auth::Role};
+use article_server_rs::{migrate_db,ServerArgs,start_server,
+    auth::{create_jwt,Role},
+    webpages::ShowWebpageResponse};
 
 struct TestResources {
     addr: SocketAddr,
@@ -31,6 +33,29 @@ async fn test_status() {
         .await
         .expect("Error sending request to server");
     assert_eq!(response.status().is_success(), true);
+}
+
+#[tokio::test]
+async fn test_get_webpage() {
+    let test_resources = start_test_server().await;
+    execute_sql_from_file("tests/data/insert-webpage.sql", &test_resources.pool)
+        .await.expect("Unable to insert webpages");
+    let client = reqwest::Client::new();
+    let response = client.get(format!("http://{}:{}/api/webpage/1",
+            test_resources.addr.ip(), test_resources.addr.port()))
+        .header(reqwest::header::AUTHORIZATION, &format!("bearer {}", test_resources.jwt))
+        .send()
+        .await
+        .expect("Error sending request to server");
+    assert_eq!(response.status().is_success(), true);
+    let webpage: ShowWebpageResponse = serde_json::from_str(
+        &response.text().await.expect("Unable to get text from response"))
+        .expect("Unable to parse response as webpage response");
+    assert_eq!(webpage, ShowWebpageResponse::new(
+        "title".into(),
+        Some("image_url".into()),
+        "text".into(),
+    ));
 }
 
 #[tokio::test]

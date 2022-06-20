@@ -5,11 +5,17 @@ use serde::Serialize;
 use sqlx::PgPool;
 use warp::http::StatusCode;
 
-#[derive(Serialize,Debug)]
-struct ShowWebpageResponse {
+#[derive(Deserialize,Serialize,Debug,PartialEq,Eq)]
+pub struct ShowWebpageResponse {
     title: String,
     image_url: Option<String>,
     content: String,
+}
+
+impl ShowWebpageResponse {
+    pub fn new(title: String, image_url: Option<String>, content: String) -> Self {
+        ShowWebpageResponse {title, image_url, content}
+    }
 }
 
 #[derive(Serialize,Debug)]
