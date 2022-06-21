@@ -12,6 +12,7 @@ struct TestResources {
     addr: SocketAddr,
     pool: PgPool,
     jwt: String,
+    admin_jwt: String,
 }
 
 // Get a random port. The TcpListener has to go out of scope to be closed and thereby release its
@@ -83,11 +84,12 @@ async fn test_register_user() {
     let test_resources = start_test_server().await;
     let users_pre = sqlx::query_as::<_, (i64,)>("select count(id) from users")
         .fetch_one(&test_resources.pool).await.expect("Unable to get user count before registering");
-    assert_eq!(users_pre.0, 1);
+    assert_eq!(users_pre.0, 2);
     let client = reqwest::Client::new();
     let response = client.post(format!("http://{}:{}/api/register",
             test_resources.addr.ip(), test_resources.addr.port()))
         .body(serde_json::json!({"username": "new-user", "password": "Password123"}).to_string())
+        .header(reqwest::header::AUTHORIZATION, &format!("bearer {}", test_resources.admin_jwt))
         .send()
         .await
         .expect("Error sending request to server");
@@ -99,6 +101,23 @@ async fn test_register_user() {
     assert_eq!(users_post.1[0], Role::User);
 }
 
+#[tokio::test]
+async fn test_register_user_not_allowed_for_non_admins() {
+    let test_resources = start_test_server().await;
+    let client = reqwest::Client::new();
+    let response = client.post(format!("http://{}:{}/api/register",
+            test_resources.addr.ip(), test_resources.addr.port()))
+        .body(serde_json::json!({"username": "new-user", "password": "Password123"}).to_string())
+        .header(reqwest::header::AUTHORIZATION, &format!("bearer {}", test_resources.jwt))
+        .send()
+        .await
+        .expect("Error sending request to server");
+    assert_eq!(response.status(), warp::http::StatusCode::UNAUTHORIZED);
+    let new_user = sqlx::query_as::<_, (String, Vec<Role>)>("select username, roles from users where username = 'new-user'")
+        .fetch_optional(&test_resources.pool).await.expect("Unable to query for new user");
+    assert!(new_user.is_none());
+}
+
 async fn start_test_server() -> TestResources {
     init_logging();
     let addr = get_address();
@@ -106,8 +125,10 @@ async fn start_test_server() -> TestResources {
     let cloned_pool = pool.clone();
     migrate_db(&pool).await.expect("Unable to migrate database");
     execute_sql_from_file("tests/data/auth.sql", &pool).await.expect("Unable to insert auth data");
-    let (user, secret) = sqlx::query_as::<_, (String, String)>("SELECT users.username, jwt_secrets.secret FROM jwt_secrets JOIN users on users.id = jwt_secrets.user_id LIMIT 1").fetch_one(&pool).await.expect("Unable to fetch jwt secret");
+    let (user, secret) = sqlx::query_as::<_, (String, String)>("SELECT users.username, jwt_secrets.secret FROM jwt_secrets JOIN users on users.id = jwt_secrets.user_id where users.id = 1").fetch_one(&pool).await.expect("Unable to fetch jwt secret");
     let jwt = create_jwt(&user, secret.as_ref(), 60 * 60 * 24).expect("Error creating jwt");
+    let (admin_user, admin_secret) = sqlx::query_as::<_, (String, String)>("SELECT users.username, jwt_secrets.secret FROM jwt_secrets JOIN users on users.id = jwt_secrets.user_id where users.id = 2").fetch_one(&pool).await.expect("Unable to fetch admin jwt secret");
+    let admin_jwt = create_jwt(&admin_user, admin_secret.as_ref(), 60 * 60 * 24).expect("Error creating admin jwt");
     let _ = tokio::spawn(async move {
         // Starting a task with a server started by warp::Server::run is possibly impossible to do
         // at the moment. I get the error
@@ -125,6 +146,7 @@ async fn start_test_server() -> TestResources {
         addr,
         pool,
         jwt,
+        admin_jwt,
     }
 }
 

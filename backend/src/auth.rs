@@ -60,7 +60,7 @@ pub struct User {
     pub password: String,
 }
 
-#[derive(sqlx::Type, Debug, Eq, PartialEq)]
+#[derive(sqlx::Type, Debug, Eq, PartialEq, Clone)]
 #[sqlx(rename_all = "lowercase")]
 pub enum Role {
     Admin,
@@ -126,7 +126,7 @@ INSERT INTO jwt_secrets(secret, user_id) (SELECT $3, id FROM new_user)
         .execute(&db_pool).await?)
 }
 
-pub async fn register_handler(db_pool: PgPool, body: User) ->
+pub async fn register_handler(db_pool: PgPool, body: User, _admin_user_id: i64) ->
         Result<impl warp::Reply, warp::Rejection> {
     if !validate_password_chars(&body.password) {
         return Ok(Response::builder()
@@ -327,14 +327,14 @@ fn verify_password(password: &str, hashed_password: &str) -> Result<bool, argon2
     Ok(Argon2::default().verify_password(password.as_bytes(), &hash).is_ok())
 }
 
-pub fn with_jwt_auth(db_pool: PgPool) -> impl warp::Filter<Extract = (i64,), Error = warp::Rejection> + Clone {
+pub fn with_jwt_auth(db_pool: PgPool, roles: Vec<Role>) -> impl warp::Filter<Extract = (i64,), Error = warp::Rejection> + Clone {
     headers_cloned()
-        .map(move |headers: HeaderMap<HeaderValue>| (db_pool.clone(), headers))
+        .map(move |headers: HeaderMap<HeaderValue>| (db_pool.clone(), roles.clone(), headers))
         .and_then(authorize_from_jwt)
 }
 
-async fn authorize_from_jwt(arg_tuple: (PgPool, HeaderMap)) -> Result<i64, warp::Rejection> {
-    let (db_pool, headers) = arg_tuple;
+async fn authorize_from_jwt(arg_tuple: (PgPool, Vec<Role>, HeaderMap)) -> Result<i64, warp::Rejection> {
+    let (db_pool, requested_roles, headers) = arg_tuple;
     let header = match headers.get("Authorization") {
         Some(header_value) => header_value,
         None => return Err(warp::reject::custom(errors::Error::MissingAuthorizationHeader))
@@ -353,7 +353,7 @@ async fn authorize_from_jwt(arg_tuple: (PgPool, HeaderMap)) -> Result<i64, warp:
     }
     let jwt = auth_header[7..].to_string();
     let sub = get_sub_from_jwt_insecure(&jwt);
-    sqlx::query_as::<_, (i64, String)>("SELECT users.id, secret FROM jwt_secrets JOIN users ON users.id = jwt_secrets.user_id WHERE users.username = $1")
+    sqlx::query_as::<_, (i64, Vec<Role>, String)>("SELECT users.id, users.roles, secret FROM jwt_secrets JOIN users ON users.id = jwt_secrets.user_id WHERE users.username = $1")
             .bind(sub)
             .fetch_optional(&db_pool).await
             .map_or_else(|error| {
@@ -362,14 +362,19 @@ async fn authorize_from_jwt(arg_tuple: (PgPool, HeaderMap)) -> Result<i64, warp:
             }, |optional_secret| {
                 optional_secret.ok_or_else(|| warp::reject::custom(errors::Error::UnknownUser))
             })
-            .and_then(|(user_id, secret)| {
+            .and_then(|(user_id, roles, secret)| {
                 decode_jwt(&jwt, secret.as_bytes())
                     .map_or_else(
                         |error| {
                             log::error!("Error when decoding jwt: {}", error);
                             Err(warp::reject::custom(errors::Error::MissingAuthorizationHeader))
                         },
-                        |_| Ok(user_id))
+                        |_| {
+                            if !roles.iter().any(|item| requested_roles.contains(item)) {
+                                return Err(warp::reject::custom(errors::Error::UserMissingRole));
+                            }
+                            Ok(user_id)
+                        })
             })
 }
 

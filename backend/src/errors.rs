@@ -7,6 +7,7 @@ use warp::http::StatusCode;
 pub enum Error {
     MissingAuthorizationHeader,
     UnknownUser,
+    UserMissingRole,
 }
 
 impl warp::reject::Reject for Error {}
@@ -22,6 +23,7 @@ pub async fn handle_rejection(rejection: warp::Rejection) -> Result<impl warp::R
         let (message, status_code) = match error {
             Error::MissingAuthorizationHeader => ("Missing or malformed authorization header", StatusCode::UNAUTHORIZED),
             Error::UnknownUser => ("Unknown user", StatusCode::UNAUTHORIZED),
+            Error::UserMissingRole => ("User missing role", StatusCode::UNAUTHORIZED),
         };
         let json = warp::reply::json(&ErrorResponse {
             message: message.to_string(),
