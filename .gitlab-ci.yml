@@ -21,7 +21,7 @@ include:
   apt-get install -y pkg-config libssl-dev
 
 test:cargo:
-  image: rust:1.57-slim-bullseye
+  image: rust:1.61-slim-bullseye
   stage: test
   script:
     - *install_openssl
