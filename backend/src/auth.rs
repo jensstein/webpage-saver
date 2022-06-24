@@ -99,7 +99,7 @@ fn validate_username_chars(username: &str) -> bool {
 }
 
 // https://rust-lang-nursery.github.io/rust-cookbook/algorithms/randomness.html#create-random-passwords-from-a-set-of-user-defined-characters
-fn generate_random_string() -> Vec<u8> {
+pub fn generate_random_string() -> Vec<u8> {
     let charset: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
         abcdefghijklmnopqrstuvwxyz\
         0123456789)(*&^%$#@!~";
@@ -317,7 +317,7 @@ pub fn create_jwt(username: &str, secret: &[u8], expiration_in_seconds: i64) -> 
     )?)
 }
 
-fn hash_password(password: &str) -> Result<String, argon2::password_hash::Error> {
+pub fn hash_password(password: &str) -> Result<String, argon2::password_hash::Error> {
     let salt = SaltString::generate(&mut rand::thread_rng());
     Ok(Argon2::default().hash_password(password.as_bytes(), &salt)?.to_string())
 }
