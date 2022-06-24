@@ -7,3 +7,5 @@
 node_modules
 
 scripts/envs
+cargo-home-dir
+pg-data
