@@ -118,6 +118,80 @@ async fn test_register_user_not_allowed_for_non_admins() {
     assert!(new_user.is_none());
 }
 
+#[tokio::test]
+async fn test_associate_app_to_user() {
+    let test_resources = start_test_server().await;
+    let apps_pre = sqlx::query_as::<_, (i64,)>("select count(id) from connected_apps")
+        .fetch_one(&test_resources.pool).await.expect("Unable to get app count before registering");
+    assert_eq!(apps_pre.0, 0);
+    let client = reqwest::Client::new();
+    let response = client.post(format!("http://{}:{}/api/associate-app-to-user",
+            test_resources.addr.ip(), test_resources.addr.port()))
+        .body(serde_json::json!({"sub": "sub", "client_id": "client_id",
+            "app_host": "app_host"}).to_string())
+        .header(reqwest::header::AUTHORIZATION, &format!("bearer {}", test_resources.jwt))
+        .send()
+        .await
+        .expect("Error sending request to server");
+    assert_eq!(response.status(), warp::http::StatusCode::CREATED);
+    let apps_post = sqlx::query_as::<_, (i64,String,String,String)>(
+            "select user_id, sub, client_id, app_host from connected_apps where user_id = 1")
+        .fetch_optional(&test_resources.pool).await.expect(
+            "Unable to get app count before registering");
+    assert_eq!(apps_post.is_some(), true);
+    if let Some(apps_post) = apps_post {
+        let (user_id, sub, client_id, app_host) = apps_post;
+        assert_eq!(user_id, 1);
+        assert_eq!(sub, "sub");
+        assert_eq!(client_id, "client_id");
+        assert_eq!(app_host, "app_host");
+    }
+}
+
+#[tokio::test]
+async fn test_associate_app_to_user_existing_app() {
+    let test_resources = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    sqlx::query("insert into connected_apps(user_id, sub, client_id, app_host) values (1, 'sub', 'client_id', 'app_host')")
+        .execute(&test_resources.pool).await
+        .expect("Unable to insert app into database");
+
+    let response = client.post(format!("http://{}:{}/api/associate-app-to-user",
+            test_resources.addr.ip(), test_resources.addr.port()))
+        .body(serde_json::json!({"sub": "sub", "client_id": "client_id",
+            "app_host": "app_host"}).to_string())
+        .header(reqwest::header::AUTHORIZATION, &format!("bearer {}", test_resources.jwt))
+        .send()
+        .await
+        .expect("Error sending request to server");
+    assert_eq!(response.status(), warp::http::StatusCode::CREATED);
+    let apps_post = sqlx::query_as::<_, (i64,String,String,String)>(
+            "select user_id, sub, client_id, app_host from connected_apps where user_id = 1 order by id desc")
+        .fetch_one(&test_resources.pool).await.expect(
+            "Unable to get app count before registering");
+    let (user_id, sub, client_id, app_host) = apps_post;
+    assert_eq!(user_id, 1);
+    assert_eq!(sub, "sub");
+    assert_eq!(client_id, "client_id");
+    // The app host must be something other than "app_host" because that values already exists.
+    assert!(app_host != "app_host");
+}
+
+#[tokio::test]
+async fn test_associate_app_to_user_malformed_json() {
+    let test_resources = start_test_server().await;
+    let client = reqwest::Client::new();
+    let response = client.post(format!("http://{}:{}/api/associate-app-to-user",
+            test_resources.addr.ip(), test_resources.addr.port()))
+        .body(serde_json::json!({"hur": 123}).to_string())
+        .header(reqwest::header::AUTHORIZATION, &format!("bearer {}", test_resources.jwt))
+        .send()
+        .await
+        .expect("Error sending request to server");
+    assert_eq!(response.status(), warp::http::StatusCode::BAD_REQUEST);
+}
+
 async fn start_test_server() -> TestResources {
     init_logging();
     let addr = get_address();

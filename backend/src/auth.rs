@@ -425,6 +425,54 @@ pub async fn extend_jwt_handler(db_pool: PgPool, user_id: i64) ->
     Ok(warp::reply::with_status(response, status_code))
 }
 
+#[derive(Deserialize,Debug)]
+pub struct AppInfo {
+    pub sub: String,
+    pub client_id: String,
+    pub app_host: String
+}
+
+pub async fn associate_app_to_user_handler(db_pool: PgPool, user_id: i64, appinfo: AppInfo) ->
+        Result<impl warp::Reply, warp::Rejection> {
+    let mut app_host = appinfo.app_host;
+    // Before trying to store the values we'll have to check if a user_id->app_host binding already
+    // exist. If it does then the app_host value will have the current time appended to ensure
+    // uniqueness.
+    match sqlx::query_as::<_, (String,)>("select app_host from connected_apps where user_id = $1")
+            .bind(user_id)
+            .fetch_all(&db_pool).await {
+        Ok(app_hosts) => {
+            for s in &app_hosts {
+                if s.0 == app_host {
+                    let now = chrono::offset::Utc::now();
+                    app_host = format!("{}-{}", app_host, now.format("%Y-%m-%dT%H:%M:%S"));
+                    break;
+                }
+            }
+        },
+        Err(error) => {
+            log::error!("Error getting app hosts for user {}: {}",
+                user_id, error);
+            return Ok(warp::reply::with_status("", StatusCode::CONFLICT))
+        }
+    }
+    match sqlx::query("insert into connected_apps(user_id, sub, client_id, app_host) values ($1, $2, $3, $4)")
+            .bind(user_id)
+            .bind(&appinfo.sub)
+            .bind(&appinfo.client_id)
+            .bind(&app_host)
+            .execute(&db_pool).await {
+        Ok(_) => {
+            Ok(warp::reply::with_status("", StatusCode::CREATED))
+        },
+        Err(error) => {
+            log::error!("Error storing association between {} and {}/{}/{}: {}",
+                user_id, appinfo.sub, appinfo.client_id, app_host, error);
+            Ok(warp::reply::with_status("", StatusCode::CONFLICT))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
