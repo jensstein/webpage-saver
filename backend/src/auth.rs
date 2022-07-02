@@ -329,13 +329,13 @@ fn verify_password(password: &str, hashed_password: &str) -> Result<bool, argon2
 
 pub fn with_jwt_auth(db_pool: PgPool, roles: Vec<Role>) -> impl warp::Filter<Extract = (i64,), Error = warp::Rejection> + Clone {
     headers_cloned()
-        .map(move |headers: HeaderMap<HeaderValue>| (db_pool.clone(), roles.clone(), headers))
+        .map(move |headers: HeaderMap<HeaderValue>| (db_pool.clone(), roles.clone(),
+            extract_jwt_from_headers(headers)))
         .and_then(authorize_from_jwt)
 }
 
-async fn authorize_from_jwt(arg_tuple: (PgPool, Vec<Role>, HeaderMap)) -> Result<i64, warp::Rejection> {
-    let (db_pool, requested_roles, headers) = arg_tuple;
-    let header = match headers.get("Authorization") {
+fn extract_jwt_from_headers(headers: HeaderMap) -> Result<String, warp::Rejection> {
+    let header = match headers.get(warp::http::header::AUTHORIZATION) {
         Some(header_value) => header_value,
         None => return Err(warp::reject::custom(errors::Error::MissingAuthorizationHeader))
     };
@@ -351,7 +351,12 @@ async fn authorize_from_jwt(arg_tuple: (PgPool, Vec<Role>, HeaderMap)) -> Result
     if !auth_header.to_lowercase().starts_with("bearer ") {
         return Err(warp::reject::custom(errors::Error::MissingAuthorizationHeader));
     }
-    let jwt = auth_header[7..].to_string();
+    Ok(auth_header[7..].to_string())
+}
+
+async fn authorize_from_jwt(arg_tuple: (PgPool, Vec<Role>, Result<String, warp::Rejection>)) -> Result<i64, warp::Rejection> {
+    let (db_pool, requested_roles, jwt_result) = arg_tuple;
+    let jwt = jwt_result?;
     let sub = get_sub_from_jwt_insecure(&jwt);
     sqlx::query_as::<_, (i64, Vec<Role>, String)>("SELECT users.id, users.roles, secret FROM jwt_secrets JOIN users ON users.id = jwt_secrets.user_id WHERE users.username = $1")
             .bind(sub)
@@ -537,5 +542,32 @@ mod tests {
         let entropy = zxcvbn::zxcvbn(&generated_string, &[])
             .expect("Error computing string entropy");
         assert_eq!(entropy.score(), 4);
+    }
+
+    #[test]
+    fn test_extract_jwt_from_headers() {
+        let mut header_map = HeaderMap::new();
+        header_map.insert(warp::http::header::AUTHORIZATION, "bearer jwt-token"
+            .parse().expect("Unable to parse header value"));
+        let jwt = extract_jwt_from_headers(header_map).expect("Unable to extract jwt");
+        assert_eq!("jwt-token", jwt);
+    }
+
+    #[test]
+    fn test_extract_jwt_from_headers_no_token() {
+        let mut header_map = HeaderMap::new();
+        header_map.insert(warp::http::header::AUTHORIZATION, "bearer"
+            .parse().expect("Unable to parse header value"));
+        let jwt = extract_jwt_from_headers(header_map);
+        assert!(jwt.is_err());
+    }
+
+    #[test]
+    fn test_extract_jwt_from_headers_no_bearer() {
+        let mut header_map = HeaderMap::new();
+        header_map.insert(warp::http::header::AUTHORIZATION, "jwt-token"
+            .parse().expect("Unable to parse header value"));
+        let jwt = extract_jwt_from_headers(header_map);
+        assert!(jwt.is_err());
     }
 }
