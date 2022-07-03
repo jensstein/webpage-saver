@@ -2,7 +2,11 @@ import axios from "axios";
 
 export default async function handler(req, res) {
     return new Promise((resolve, reject) => {
-         axios.post(`${process.env.BACKEND_URL}/api/fetch`,
+        if(req.headers.authorization === undefined || req.headers.authorization === null) {
+            res.status(401).json({message: "Missing authorization header"});
+            return resolve();
+        }
+        axios.post(`${process.env.BACKEND_URL}/api/fetch`,
             {url: req.body.url}, {headers: {"Authorization": req.headers.authorization}})
             .then(data => {
                 res.status(data.status).send();
