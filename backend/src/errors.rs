@@ -8,6 +8,8 @@ pub enum Error {
     MissingAuthorizationHeader,
     UnknownUser,
     UserMissingRole,
+    OAuth2ProviderNotConfigured,
+    OAuth2ProviderError,
 }
 
 impl warp::reject::Reject for Error {}
@@ -24,6 +26,8 @@ pub async fn handle_rejection(rejection: warp::Rejection) -> Result<impl warp::R
             Error::MissingAuthorizationHeader => ("Missing or malformed authorization header", StatusCode::UNAUTHORIZED),
             Error::UnknownUser => ("Unknown user", StatusCode::UNAUTHORIZED),
             Error::UserMissingRole => ("User missing role", StatusCode::UNAUTHORIZED),
+            Error::OAuth2ProviderNotConfigured => ("OAuth2 not allowed", StatusCode::UNAUTHORIZED),
+            Error::OAuth2ProviderError => ("OAuth2 not allowed", StatusCode::UNAUTHORIZED),
         };
         let json = warp::reply::json(&ErrorResponse {
             message: message.to_string(),
