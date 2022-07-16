@@ -2,9 +2,13 @@ import "bootstrap/dist/css/bootstrap.css";
 import '../styles/globals.css'
 
 import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
+import { createContext, useState, useEffect } from "react";
 
 import { verify_jwt, logout } from "../requests/auth.js";
+
+export const Context = createContext({
+    "authorized": false,
+});
 
 function MyApp({ Component, pageProps }) {
     const router = useRouter();
@@ -25,7 +29,7 @@ function MyApp({ Component, pageProps }) {
             })
             .catch(_ => console.log("Logout failed"));
         };
-        const {jwt} = pageProps;
+        const {jwt, ignore_authentication} = pageProps;
         if(authorized) {
             return;
         } else if(jwt) {
@@ -38,7 +42,7 @@ function MyApp({ Component, pageProps }) {
             }).catch(_ => {
                 remove_jwt();
             })
-        } else {
+        } else if(!ignore_authentication) {
             sendToLogin(path);
         }
     }, [authorized, pageProps]);
@@ -49,7 +53,11 @@ function MyApp({ Component, pageProps }) {
         }
     }
 
-    return <Component {...pageProps} />
+    return (
+        <Context.Provider value={{authorized}}>
+            <Component {...pageProps} />
+        </Context.Provider>
+    )
 }
 
 export default MyApp
