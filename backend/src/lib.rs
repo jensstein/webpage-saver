@@ -3,6 +3,7 @@ mod errors;
 pub mod webpages;
 
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use clap::{App,Arg,ArgMatches};
 use html5ever::tendril::TendrilSink;
@@ -59,7 +60,7 @@ async fn fetch_webpage(http_client: reqwest::Client, url: &str) -> Result<String
     }
 }
 
-async fn write_to_db(conn: PgPool, url: &str, webpage: &Webpage,  user_id: i64) ->
+async fn write_to_db(conn: &PgPool, url: &str, webpage: &Webpage,  user_id: i64) ->
         Result<sqlx::postgres::PgQueryResult, sqlx::Error> {
     Ok(sqlx::query("INSERT INTO webpages(url, title, text, html, image_url, user_id) VALUES ($1, $2, $3, $4, $5, $6)")
         .bind(url)
@@ -68,17 +69,17 @@ async fn write_to_db(conn: PgPool, url: &str, webpage: &Webpage,  user_id: i64) 
         .bind(&webpage.original_html)
         .bind(&webpage.image_url)
         .bind(user_id)
-        .execute(&conn).await?)
+        .execute(conn).await?)
 }
 
-async fn fetch_handler(db_pool: PgPool,
+async fn fetch_handler(db_pool: Arc<PgPool>,
         http_client: reqwest::Client, body: FetchWebpage, user_id: i64) ->
         Result<impl warp::Reply, warp::Rejection> {
 
     match fetch_webpage(http_client, &body.url).await {
         Ok(html) => {
             let webpage = traverse_document(&html);
-            match write_to_db(db_pool, &body.url, &webpage, user_id).await {
+            match write_to_db(&db_pool, &body.url, &webpage, user_id).await {
                 // Return-typen bestemmes af Responsens body, så hvis den er String det ene sted,
                 // skal den også være String det andet. Og den er nødt til at være String i
                 // Err-delen, fordi man ikke kan sende en reference til error ud af funktionen.
@@ -106,11 +107,11 @@ struct UserInfo {
     username: String,
 }
 
-async fn userinfo_handler(db_pool: PgPool, user_id: i64) ->
+async fn userinfo_handler(db_pool: Arc<PgPool>, user_id: i64) ->
         Result<impl warp::Reply, warp::Rejection> {
     sqlx::query_as::<_, (String,)>("select username from users where id = $1")
             .bind(user_id)
-            .fetch_optional(&db_pool).await
+            .fetch_optional(&*db_pool).await
             .map_or_else(|error| {
                 log::error!("Error when fetching user from database: {}", error);
                 return Err(warp::reject::custom(errors::Error::UnknownUser))
@@ -268,12 +269,20 @@ pub struct ServerArgs {
 }
 
 pub fn start_server(args: ServerArgs) -> impl std::future::Future<Output = ()> + 'static {
-    // an intermediary cloned pool to avoid moving the whole ServerArgs struct which would make it
-    // impossible to borrow it again later in the function.
-    let cloned_pool = args.pool.clone();
-    let pool = warp::any().map(move|| cloned_pool.clone());
-    // This db pool is passed to the jwt authorization filter
-    let auth_pool = args.pool.clone();
+    // Wrap the pool object in a reference counter to avoid cloning the actual object every time it
+    // is passed to a handler. The warp filters cannot take &-references but an Arc can be used to
+    // avoid cloning the actual object. This way only the Arc is cloned on every call to .clone().
+    // All the different Arcs will still point to the same allocation on the heap.
+    // https://rust-unofficial.github.io/patterns/anti_patterns/borrow_clone.html
+    // https://doc.rust-lang.org/std/sync/struct.Arc.html
+    // https://doc.rust-lang.org/rust-by-example/std/arc.html
+    // https://stackoverflow.com/a/71191133
+    // https://github.com/seanmonstar/warp/blob/master/examples/todos.rs
+    let pool = Arc::new(args.pool);
+    // This db pool is passed to the jwt authorization filter. It needs to be a regular object and
+    // not a warp filter so the pool object passed to the handlers cannot be used here.
+    let auth_pool = pool.clone();
+    let pool = warp::any().map(move|| pool.clone());
     let http_client = warp::any().map(move|| reqwest::Client::new());
     let api_routes = warp::post()
             .and(warp::path("fetch"))
