@@ -38,6 +38,111 @@ async fn test_status() {
 }
 
 #[tokio::test]
+async fn test_fetch_webpage() {
+    let test_resources = start_test_server().await;
+    let client = reqwest::Client::new();
+    let mock_server = MockServer::start().await;
+    let html_response = "<head><script src=\"script.js\"></script><title>Title</title></head><body><p>An html document</p></body>";
+    let mock_response = ResponseTemplate::new(200)
+        .set_body_string(html_response);
+    Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("fetch-page"))
+        .respond_with(mock_response)
+        // Expect the mock to be called exactly once.
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+    let url = &format!("{}/fetch-page", mock_server.uri());
+    let response = client.post(format!("http://{}:{}/api/fetch",
+            test_resources.addr.ip(), test_resources.addr.port()))
+        .header(reqwest::header::AUTHORIZATION, &format!("bearer {}", test_resources.jwt))
+        .body(serde_json::json!({"url": url}).to_string())
+        .send()
+        .await
+        .expect("Error sending request to server");
+    assert!(response.status().is_success());
+    let results = sqlx::query_as::<_, (String, String, String)>("select text, html, title from webpages where url = $1 and user_id = 1")
+        .bind(url)
+        .fetch_optional(&test_resources.pool).await.expect("Unable to query for fetched webpage");
+    assert!(results.is_some());
+    if let Some(results) = results {
+        let (text, html, title) = results;
+        assert_eq!(text, "<title > Title </title> <p > An html document </p>");
+        assert_eq!(html, "<head><script src=\"script.js\"></script><title>Title</title></head><body><p>An html document</p></body>");
+        assert_eq!(title, "Title");
+    } else {
+        panic!("This should not happen");
+    }
+}
+
+#[tokio::test]
+async fn test_fetch_webpage_html_provided() {
+    let test_resources = start_test_server().await;
+    let client = reqwest::Client::new();
+    let mock_server = MockServer::start().await;
+    let html_response = "<head><script src=\"script.js\"></script><title>Title</title></head><body><p>An html document</p></body>";
+    let mock_response = ResponseTemplate::new(200)
+        .set_body_string(html_response);
+    Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("fetch-page"))
+        .respond_with(mock_response)
+        // Expect the mock not to be called because the client supplied the html themselves.
+        .expect(0)
+        .mount(&mock_server)
+        .await;
+    let url = &format!("{}/fetch-page", mock_server.uri());
+    let response = client.post(format!("http://{}:{}/api/fetch",
+            test_resources.addr.ip(), test_resources.addr.port()))
+        .header(reqwest::header::AUTHORIZATION, &format!("bearer {}", test_resources.jwt))
+        .body(serde_json::json!({"url": url,
+            "html": "<head><script src=\"script.js\"></script><title>Self-provided title</title></head><body><p>A self-provided html document</p></body>"}).to_string())
+        .send()
+        .await
+        .expect("Error sending request to server");
+    assert_eq!(response.status().is_success(), true);
+    let results = sqlx::query_as::<_, (String, String, String)>("select text, html, title from webpages where url = $1 and user_id = 1")
+        .bind(url)
+        .fetch_optional(&test_resources.pool).await.expect("Unable to query for fetched webpage");
+    assert!(results.is_some());
+    if let Some(results) = results {
+        let (text, html, title) = results;
+        assert_eq!(text, "<title > Self-provided title </title> <p > A self-provided html document </p>");
+        assert_eq!(html, "<head><script src=\"script.js\"></script><title>Self-provided title</title></head><body><p>A self-provided html document</p></body>");
+        assert_eq!(title, "Self-provided title");
+    } else {
+        panic!("This should not happen");
+    }
+}
+
+#[tokio::test]
+async fn test_fetch_webpage_error_on_fetch() {
+    let test_resources = start_test_server().await;
+    let client = reqwest::Client::new();
+    let mock_server = MockServer::start().await;
+    let mock_response = ResponseTemplate::new(500)
+        .set_body_string("Some unknown error");
+    Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("fetch-page"))
+        .respond_with(mock_response)
+        // Expect the mock to be called exactly once.
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+    let url = &format!("{}/fetch-page", mock_server.uri());
+    let response = client.post(format!("http://{}:{}/api/fetch",
+            test_resources.addr.ip(), test_resources.addr.port()))
+        .header(reqwest::header::AUTHORIZATION, &format!("bearer {}", test_resources.jwt))
+        .body(serde_json::json!({"url": url}).to_string())
+        .send()
+        .await
+        .expect("Error sending request to server");
+    assert_eq!(response.status(), warp::http::StatusCode::NOT_FOUND);
+    let error_text = format!("Unable to fetch {}/fetch-page. Got status 500 Internal Server Error: Some unknown error",
+        mock_server.uri());
+    assert_eq!(error_text, response.text().await.expect("Unable to get text of response"));
+}
+
+#[tokio::test]
 async fn test_get_webpage() {
     let test_resources = start_test_server().await;
     execute_sql_from_file("tests/data/insert-webpage.sql", &test_resources.pool)

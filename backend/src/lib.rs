@@ -21,6 +21,7 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("db/migrations");
 #[derive(Deserialize,Debug)]
 struct FetchWebpage {
     url: String,
+    html: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,7 +43,7 @@ impl From<reqwest::Error> for FetchError {
     }
 }
 
-async fn fetch_webpage(http_client: reqwest::Client, url: &str) -> Result<String, FetchError> {
+async fn fetch_webpage(http_client: &reqwest::Client, url: &str) -> Result<String, FetchError> {
     match http_client.get(url).send().await {
         Ok(response) => {
             if response.status().is_success() {
@@ -76,27 +77,29 @@ async fn fetch_handler(db_pool: Arc<PgPool>,
         http_client: reqwest::Client, body: FetchWebpage, user_id: i64) ->
         Result<impl warp::Reply, warp::Rejection> {
 
-    match fetch_webpage(http_client, &body.url).await {
-        Ok(html) => {
-            let webpage = traverse_document(&html);
-            match write_to_db(&db_pool, &body.url, &webpage, user_id).await {
-                // Return-typen bestemmes af Responsens body, så hvis den er String det ene sted,
-                // skal den også være String det andet. Og den er nødt til at være String i
-                // Err-delen, fordi man ikke kan sende en reference til error ud af funktionen.
-                Ok(_) => return Ok(Response::builder().status(StatusCode::CREATED).body("".to_string())),
-                Err(error) => {
-                    log::error!("Error getting database connection: {}", error.to_string());
-                    return Ok(Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body("".to_string())
-                    );
-                }
+    let html = match body.html {
+        Some(html) => html,
+        None => match fetch_webpage(&http_client, &body.url).await {
+            Ok(html) => html,
+            Err(error) => {
+                return Ok(Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(error.to_string())
+                );
             }
-        },
+        }
+    };
+    let webpage = traverse_document(&html);
+    match write_to_db(&db_pool, &body.url, &webpage, user_id).await {
+        // Return-typen bestemmes af Responsens body, så hvis den er String det ene sted,
+        // skal den også være String det andet. Og den er nødt til at være String i
+        // Err-delen, fordi man ikke kan sende en reference til error ud af funktionen.
+        Ok(_) => return Ok(Response::builder().status(StatusCode::CREATED).body("".to_string())),
         Err(error) => {
+            log::error!("Error getting database connection: {}", error.to_string());
             return Ok(Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(error.to_string())
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body("".to_string())
             );
         }
     }
