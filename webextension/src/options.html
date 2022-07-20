@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf8">
+    </head>
+    <body>
+        <form>
+            <div>
+                <label for="base-url">Base URL</label>
+                <input type="text" id="base-url">
+            </div>
+            <button type="submit">Connect</button>
+        </form>
+
+        <div>
+            <h2 id="access-token-header" display="none">Access token</h2>
+            <p id="access-token"></p>
+            <h2 id="refresh-token-header" display="none">Refresh token</h2>
+            <p id="refresh-token"></p>
+        </div>
+
+        <script src="options.js"></script>
+    </body>
+</html>

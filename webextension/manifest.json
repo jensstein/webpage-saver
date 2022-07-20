@@ -1,0 +1,56 @@
+{
+    "manifest_version": 2,
+    "name": "iwideril",
+    "version": "1.0",
+
+    "description": "Saves webpages with an iwideril instance",
+    "homepage_url": "https://to.be.set",
+
+    "permissions": [
+        "identity",
+        "storage",
+        "activeTab"
+    ],
+
+    "optional_permissions": [
+        "webRequest",
+        "<all_urls>"
+    ],
+
+    "icons": {
+        "48": "icons/book-48.png",
+        "128": "icons/book-128.png"
+    },
+
+    "browser_action": {
+        "default_icon": "icons/book-48.png",
+        "default_title": "Save page with iwideril"
+    },
+
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["src/content.js"]
+        }
+    ],
+    "background": {
+        "scripts": ["src/background.js"]
+    },
+    "options_ui": {
+        "page": "src/options.html"
+    },
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "addon@iwideril"
+        }
+    },
+
+    "commands": {
+        "fetch-page": {
+            "suggested_key": {
+                "default": "Ctrl+Period"
+            },
+            "description": "Fetch the current page"
+        }
+    }
+}
