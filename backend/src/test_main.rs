@@ -28,10 +28,18 @@ impl std::cmp::PartialEq for WebpagesRow {
 #[test]
 fn test_traverse_document() {
     let html = include_str!("test-data/file.html");
-    let result = traverse_document(html);
+    let result = traverse_document(html).expect("Unable to parse document");
     assert_eq!(result.title, "HUR".to_string());
     assert_eq!(result.contents, "<title > HUR </title> <h1 > overskrift </h1> <h2 > underoverskrift med <a href=link1> link </a> </h2> <img src=image.url> </img> <p > tekst 1 </p> <p > tekst med <a href=link2> link </a> og tekst </p> <p id=10> tekst med <span id=20> tekst inde i <span id=30> tekst </span> </span> </p>");
     assert_eq!(result.image_url, Some("image.url".to_string()));
+}
+
+#[test]
+fn test_traverse_document_invalid_document() {
+    // This html contains an invalid script element.
+    let html_response = "<!DOCTYPE html><html><head><script src=\"script.js\"/><title>Title</title></head><body><div><p>An html document</p></div></body></html>";
+    let result = traverse_document(html_response);
+    assert!(result.is_err());
 }
 
 #[tokio::test]

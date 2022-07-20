@@ -20,6 +20,24 @@ pub struct ErrorResponse {
     pub status: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct ParseDocumentError<'a> {
+    message: &'a str,
+}
+
+impl std::fmt::Display for ParseDocumentError<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl std::error::Error for ParseDocumentError<'_> {}
+impl<'a> ParseDocumentError<'a> {
+    pub fn new(message: &'a str) -> Self {
+        Self {message}
+    }
+}
+
 pub async fn handle_rejection(rejection: warp::Rejection) -> Result<impl warp::Reply, warp::Rejection> {
     if let Some(error) = rejection.find::<Error>() {
         let (message, status_code) = match error {

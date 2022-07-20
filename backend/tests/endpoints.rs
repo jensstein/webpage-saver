@@ -76,6 +76,35 @@ async fn test_fetch_webpage() {
 }
 
 #[tokio::test]
+async fn test_fetch_webpage_invalid_html() {
+    let test_resources = start_test_server().await;
+    let client = reqwest::Client::new();
+    let mock_server = MockServer::start().await;
+    // This html contains an invalid script element.
+    let html_response = "<head><script src=\"script.js\"/><title>Title</title></head><body><p>An html document</p></body>";
+    let mock_response = ResponseTemplate::new(200)
+        .set_body_string(html_response);
+    Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("fetch-page"))
+        .respond_with(mock_response)
+        // Expect the mock to be called exactly once.
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+    let url = &format!("{}/fetch-page", mock_server.uri());
+    let response = client.post(format!("http://{}:{}/api/fetch",
+            test_resources.addr.ip(), test_resources.addr.port()))
+        .header(reqwest::header::AUTHORIZATION, &format!("bearer {}", test_resources.jwt))
+        .body(serde_json::json!({"url": url}).to_string())
+        .send()
+        .await
+        .expect("Error sending request to server");
+    assert_eq!(response.status(), warp::http::StatusCode::INTERNAL_SERVER_ERROR);
+    let error_text = "Unable to extract any text from document";
+    assert_eq!(error_text, response.text().await.expect("Unable to get text of response"));
+}
+
+#[tokio::test]
 async fn test_fetch_webpage_html_provided() {
     let test_resources = start_test_server().await;
     let client = reqwest::Client::new();

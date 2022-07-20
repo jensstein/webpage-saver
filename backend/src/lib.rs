@@ -89,18 +89,27 @@ async fn fetch_handler(db_pool: Arc<PgPool>,
             }
         }
     };
-    let webpage = traverse_document(&html);
-    match write_to_db(&db_pool, &body.url, &webpage, user_id).await {
-        // Return-typen bestemmes af Responsens body, så hvis den er String det ene sted,
-        // skal den også være String det andet. Og den er nødt til at være String i
-        // Err-delen, fordi man ikke kan sende en reference til error ud af funktionen.
-        Ok(_) => return Ok(Response::builder().status(StatusCode::CREATED).body("".to_string())),
+    match traverse_document(&html) {
+        Ok(webpage) => {
+            match write_to_db(&db_pool, &body.url, &webpage, user_id).await {
+                // Return-typen bestemmes af Responsens body, så hvis den er String det ene sted,
+                // skal den også være String det andet. Og den er nødt til at være String i
+                // Err-delen, fordi man ikke kan sende en reference til error ud af funktionen.
+                Ok(_) => return Ok(Response::builder().status(StatusCode::CREATED).body("".to_string())),
+                Err(error) => {
+                    log::error!("Error getting database connection: {}", error.to_string());
+                    return Ok(Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body("".to_string())
+                    );
+                }
+            }
+        },
         Err(error) => {
-            log::error!("Error getting database connection: {}", error.to_string());
-            return Ok(Response::builder()
+            log::error!("Error parsing document for url {}: {}", &body.url, error);
+            Ok(Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body("".to_string())
-            );
+                .body(error.to_string()))
         }
     }
 }
@@ -141,7 +150,7 @@ struct Webpage {
     original_html: String,
 }
 
-fn traverse_document(html: &str) -> Webpage {
+fn traverse_document(html: &str) -> Result<Webpage, errors::ParseDocumentError> {
     let document = kuchiki::parse_html().one(html);
     // https://stackoverflow.com/a/66277475
     document.inclusive_descendants()
@@ -215,11 +224,16 @@ fn traverse_document(html: &str) -> Webpage {
             },
         }
     }
-    Webpage {
-        title,
-        contents: string_builder.join(" "),
-        image_url,
-        original_html: html.to_string(),
+    let contents = string_builder.join(" ");
+    if !contents.is_empty() {
+        Ok(Webpage {
+            title,
+            contents,
+            image_url,
+            original_html: html.to_string(),
+        })
+    } else {
+        Err(errors::ParseDocumentError::new("Unable to extract any text from document"))
     }
 }
 
