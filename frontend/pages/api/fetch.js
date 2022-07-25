@@ -1,4 +1,5 @@
 import { RequestSender } from "../../helpers/api-requests.js";
+import { get_info_from_request_error } from "../../helpers/utils.js";
 
 export default async function handler(req, res) {
     const sender = new RequestSender(req);
@@ -14,7 +15,8 @@ export default async function handler(req, res) {
                 resolve();
             })
             .catch(error => {
-                console.log(`Error happended when fetching ${req.body.url}: ${error}`);
+                const error_info = get_info_from_request_error(error);
+                console.log(`Error happended when fetching ${req.body.url}: ${error}`, error_info);
                 let status = 500;
                 if(error.response !== undefined && error.response.status !== undefined) {
                     status = error.response.status

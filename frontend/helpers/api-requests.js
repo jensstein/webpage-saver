@@ -1,5 +1,7 @@
 import axios from "axios";
 
+import { check_value } from "../helpers/utils.js";
+
 export class RequestSender {
     constructor(request) {
         this.auth_type = request.query["auth-type"];
@@ -17,7 +19,7 @@ export class RequestSender {
         const _url = new URL(url, process.env.SERVER_BASE_URL);
         // If the auth-type query parameter is set here it should be
         // propagated to the backend call as well.
-        if(!_url.searchParams.has("auth-type")) {
+        if(!_url.searchParams.has("auth-type") && check_value(this.auth_type)) {
             _url.searchParams.set("auth-type", this.auth_type);
         }
         return axios({
