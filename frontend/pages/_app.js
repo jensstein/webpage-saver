@@ -49,7 +49,7 @@ function MyApp({ Component, pageProps }) {
 
     function sendToLogin(path) {
         if(path != "/login") {
-            router.push({pathname: "/login", query: {returnUrl: router.asPath.split("?")[0]}});
+            router.push({pathname: "/login", query: {returnUrl: encodeURIComponent(router.asPath)}});
         }
     }
 

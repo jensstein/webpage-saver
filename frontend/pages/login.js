@@ -13,7 +13,7 @@ export default function Login() {
         const username = e.target.elements.username.value;
         const password = e.target.elements.password.value;
         login(username, password).then(data => {
-            const returnUrl = router.query.returnUrl || '/';
+            const returnUrl = decodeURIComponent(router.query.returnUrl) || '/';
             router.push(returnUrl);
         }).catch(error => {
             console.log("Error on login: ", error);
