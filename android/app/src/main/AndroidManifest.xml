@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="dk.jens.webpage_saver">
+    <!-- Allow http traffic because I cannot control which URL the user sets as the backend connection
+    https://stackoverflow.com/a/65958652 -->
+    <application
+            android:allowBackup="true"
+            android:icon="@mipmap/book"
+            android:label="@string/app_name"
+            android:roundIcon="@mipmap/book"
+            android:supportsRtl="true"
+            android:theme="@style/Theme.WebpageSaver"
+            android:usesCleartextTraffic="true">
+        <activity
+                android:name=".SetupActivity"
+                android:exported="false"
+                android:label="@string/title_activity_setup"
+                android:theme="@style/Theme.WebpageSaver.NoActionBar"/>
+        <activity
+                android:name=".WebBrowserActivity"
+                android:exported="true"
+                android:label="@string/title_activity_webbrowser"
+                android:theme="@style/Theme.WebpageSaver.NoActionBar"/>
+        <!-- noHistory is for trying to make sure that the custom tabs browser
+        opened by appauth is completely disposed when done -->
+        <activity
+                android:name=".openid.OpenidConnectionActivity"
+                android:exported="true"
+                android:label="@string/title_activity_openid_connection"
+                android:theme="@style/Theme.WebpageSaver.NoActionBar"
+                android:noHistory="true">
+        </activity>
+        <activity
+                android:name=".openid.OpenIDTokenHandler"
+                android:exported="true"
+                android:label="@string/title_activity_openid_token_handler">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+
+                <!-- To debug problems with this intent filter,
+                    `dumpsys dk.jens.webpage_saver` and
+                    `am start -a android.intent.action.VIEW -d "webpagesaver://token-callback" dk.jens.webpage_saver`
+                    are useful.
+                    https://stackoverflow.com/a/29601174
+                    https://stackoverflow.com/a/64044270
+                -->
+                <data
+                    android:scheme="dk.jens.webpagesaver"
+                    android:host="token-callback"
+                    />
+            </intent-filter>
+        </activity>
+        <activity
+                android:name=".MainActivity"
+                android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- https://developer.android.com/training/sharing/receive -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

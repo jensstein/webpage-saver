@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:id="@+id/nav_graph_setup"
+        app:startDestination="@id/SetupFragment">
+
+    <fragment
+        android:id="@+id/SetupFragment"
+        android:name="dk.jens.webpage_saver.SetupFragment"
+        android:label="@string/setup_fragment_label"
+        tools:layout="@layout/fragment_setup">
+    </fragment>
+</navigation>

@@ -1,0 +1,38 @@
+<resources>
+    <string name="app_name">Webpage saver</string>
+    <string name="title_activity_openid_connection">Openid connection</string>
+    <string name="title_activity_openid_token_handler">Openid tokens</string>
+    <string name="title_activity_webbrowser">Webbrowser</string>
+    <string name="title_activity_setup">Setup</string>
+
+    <string name="setup_fragment_label">Setup</string>
+    <string name="openid_fragment_label">OpenID</string>
+
+    <string name="base_url_label">Base url</string>
+    <string name="openid_connect_btn">Connect</string>
+    <string name="url_open_btn">Open page</string>
+    <string name="fetch_page_btn">Fetch page</string>
+    <string name="openid_token_handler_token_extract_error">Error getting tokens from server response</string>
+    <string name="setup_base_url_input">Base url</string>
+    <string name="setup_btn_connect">Connect</string>
+    <string name="url_input_hint">URL to fetch</string>
+
+    <string name="settings">Settings</string>
+
+    <string name="no_url_provided">No URL provided</string>
+    <string name="url_missing_from_page">No URL provided</string>
+    <string name="no_tokens_found">No tokens found in storage</string>
+    <string name="no_base_url_found">No base url specified in the settings</string>
+    <string name="text_missing_from_intent">Text was missing from received intent</string>
+    <string name="setup_connect_button_context_missing">Unable to connect to backend. Context missing.</string>
+    <string name="url_input_field_missing_in_mainactivity">Error when trying to repopulate url input</string>
+    <string name="malformed_url_input">Malformed URL: %1$s</string>
+    <string name="timeout_connecting_to_backend">Connection to backend timed out</string>
+    <string name="error_on_authorization">Error on authorization</string>
+
+    <string name="unexpected_json_representation_of_html">Unable to get source html from page</string>
+    <string name="error_parsing_page_source_as_json">Unable to get source html from page</string>
+    <string name="error_on_page_fetch">Error when fetching page: %1$s</string>
+    <string name="error_on_token_refresh">Error when refreshing access token: %1$s</string>
+    <string name="fetch_page_success">Fetching %1$s succeeded!</string>
+</resources>
