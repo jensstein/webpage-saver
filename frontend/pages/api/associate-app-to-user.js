@@ -2,8 +2,8 @@ import axios from "axios";
 
 export default async function handler(req, res) {
     return new Promise((resolve, reject) => {
-    const {authorization} = req.headers;
-        axios.post(`${process.env.BACKEND_URL}/api/associate-app-to-user`,
+        const {authorization} = req.headers;
+        return axios.post(`${process.env.BACKEND_URL}/api/associate-app-to-user`,
                 {sub: req.body.sub, client_id: req.body.client_id, app_host: req.body.app_host},
                 {headers: {authorization}})
             .then(data => res.status(201).send())

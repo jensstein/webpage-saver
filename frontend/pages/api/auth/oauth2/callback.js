@@ -192,7 +192,7 @@ function get_token(jwt) {
 export default async function handler(req, res) {
     const jwt = get_jwt({req});
     const cookies = get_cookie({req});
-    get_userinfo(jwt)
+    return get_userinfo(jwt)
         .then(get_auth_data(cookies))
         .then(validate_auth_data)
         .then(get_code(req.url))

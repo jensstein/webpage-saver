@@ -27,7 +27,7 @@ export default async function handler(req, res) {
         console.log("Missing jwt");
         return res.status(401).send();
     }
-    get_userinfo(jwt).then(async userinfo => {
+    return get_userinfo(jwt).then(async userinfo => {
         const { username } = userinfo;
         const state = base64URLEncode(crypto.randomBytes(32));
         const verifier = base64URLEncode(crypto.randomBytes(32));
@@ -49,9 +49,9 @@ export default async function handler(req, res) {
         // Include the `offline_access` scope to get a refresh token:
         // https://auth0.com/docs/secure/tokens/refresh-tokens/get-refresh-tokens
         const url = `${base_url}/authorize?response_type=code&client_id=${client_id}&code_challenge=${challenge}&code_challenge_method=S256&redirect_uri=${own_redirect_uri}&scope=offline_access&audience=${audience}&state=${state}`
-        res.redirect(302, url);
+        return res.redirect(302, url);
     }).catch(error => {
         console.log(`Error when getting userinfo: ${error}`);
-        res.status(401).send();
+        return res.status(401).send();
     });
 }
