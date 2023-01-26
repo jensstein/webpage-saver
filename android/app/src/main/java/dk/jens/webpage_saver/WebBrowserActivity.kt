@@ -128,27 +128,37 @@ class WebBrowserActivity : AppCompatActivity() {
         }
     }
 
+    private suspend fun fetch(context: Context, service: BackendApi, page: Page, access_token: String) {
+        service.fetch(FetchBody(page.url.toString(), page.content), "bearer $access_token")
+        val displayUrl = if (page.url.toString().length > 10) {
+            val urlSubparts = "${page.url.host}/${page.url.path}"
+            "${urlSubparts.substring(0, 10)}..."
+        } else {
+            page.url.toString()
+        }
+        showMessage(binding.root, context.getString(R.string.fetch_page_success, displayUrl))
+    }
+
     private fun fetchPage(context: Context, baseUrl: String, tokens: Tokens, page: Page) {
         val service = createService(baseUrl)
         GlobalScope.launch {
             try {
-                service.fetch(FetchBody(page.url.toString(), page.content), "bearer ${tokens.access_token}")
-                val displayUrl = if (page.url.toString().length > 10) {
-                    val urlSubparts = "${page.url.host}/${page.url.path}"
-                    "${urlSubparts.substring(0, 10)}..."
-                } else {
-                    page.url.toString()
-                }
-                showMessage(binding.root, context.getString(R.string.fetch_page_success, displayUrl))
+                fetch(context, service, page, tokens.access_token)
             } catch (e: HttpException) {
                 if (e.code() == 401) {
                     try {
                         val tokensResponse = service.refreshToken(RefreshTokenBody(tokens.refresh_token))
-                        storeTokens(context, tokensResponse.access_token, tokensResponse.refresh_token)
-                        service.fetch(
-                            FetchBody(page.url.toString(), page.content),
-                            "bearer ${tokensResponse.access_token}"
-                        )
+                        if(tokensResponse.isSuccessful) {
+                            val newTokens = tokensResponse.body()
+                            if(newTokens != null) {
+                                storeTokens(context, newTokens.access_token, newTokens.refresh_token)
+                                fetch(context, service, page, newTokens.access_token)
+                            } else {
+                                startActivity(Intent(context, OpenidConnectionActivity::class.java))
+                            }
+                        } else {
+                            startActivity(Intent(context, OpenidConnectionActivity::class.java))
+                        }
                     } catch (e2: HttpException) {
                         if (e2.code() == 401) {
                             startActivity(Intent(context, OpenidConnectionActivity::class.java))

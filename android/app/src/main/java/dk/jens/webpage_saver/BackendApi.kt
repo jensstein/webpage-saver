@@ -1,6 +1,8 @@
 package dk.jens.webpage_saver
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import okhttp3.OkHttpClient
+import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.jackson.JacksonConverterFactory
 import retrofit2.http.Body
@@ -11,7 +13,7 @@ import java.util.concurrent.TimeUnit
 
 data class FetchBody(val url: String, val html: String)
 data class RefreshTokenBody(val refresh_token: String)
-data class TokenResponse(val access_token: String, val refresh_token: String)
+data class TokenResponse(@JsonProperty("access_token") val access_token: String, @JsonProperty("refresh_token") val refresh_token: String)
 
 interface BackendApi {
     @Headers("content-type: application/json")
@@ -20,7 +22,7 @@ interface BackendApi {
 
     @Headers("content-type: application/json")
     @POST("api/auth/oauth2/refresh-token")
-    suspend fun refreshToken(@Body body: RefreshTokenBody): TokenResponse
+    suspend fun refreshToken(@Body body: RefreshTokenBody): Response<TokenResponse>
 }
 
 fun createService(baseUrl: String): BackendApi {
