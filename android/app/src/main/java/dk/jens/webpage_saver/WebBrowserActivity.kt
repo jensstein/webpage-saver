@@ -56,6 +56,9 @@ class WebBrowserActivity : AppCompatActivity() {
                 CookieManager.getInstance().setAcceptThirdPartyCookies(webview, true)
                 @SuppressLint("SetJavaScriptEnabled")
                 webview.settings.javaScriptEnabled = true
+                // Some webpages will fail to load if DOM storage is not enabled
+                // https://stackoverflow.com/a/31040469
+                webview.settings.domStorageEnabled = true
                 webview.loadUrl(url)
                 if(BuildConfig.DEBUG) {
                     // https://stackoverflow.com/a/40485201
