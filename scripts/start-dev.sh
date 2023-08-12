@@ -5,7 +5,7 @@ set -xe
 source frontend/.env.local
 
 NAME=woom
-POD_ID=$(podman pod create --replace -n $NAME-dev -p 3000:3000 -p 5000:5000 --userns keep-id)
+POD_ID=$(podman pod create --replace -n $NAME-dev -p 3000:3000 -p 5000:5000 -p 5432:5432 --userns keep-id)
 
 # When userns=keep-id is set on the postgres container the id in the container
 # changes to the id of the user who started it. But that's a problem a problem
