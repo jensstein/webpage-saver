@@ -2,7 +2,21 @@
 
 set -xe
 
+cd $(realpath $(dirname $0))/..
+
 source frontend/.env.local
+
+if test "$(podman images localhost/yarn --format {{.Digest}})" = ""; then
+	pushd docker
+	podman build -t yarn -f Dockerfile-node .
+	popd
+fi
+
+if test "$(podman images localhost/rust-dev --format {{.Digest}})" = ""; then
+	pushd docker
+	podman build -t rust-dev -f Dockerfile-rust .
+	popd
+fi
 
 NAME=woom
 POD_ID=$(podman pod create --replace -n $NAME-dev -p 3000:3000 -p 5000:5000 -p 5432:5432 --userns keep-id)
