@@ -8,8 +8,12 @@ export default async function handler(req, res) {
             res.status(401).json({message: "Missing authorization header"});
             return resolve();
         }
+        let body = {url: req.body.url};
+        if(req.body.html !== undefined && req.body.html !== null) {
+            body["html"] = req.body.html;
+        }
         sender.post(`${process.env.BACKEND_URL}/api/fetch`,
-            {url: req.body.url}, {"Authorization": req.headers.authorization})
+            body, {"Authorization": req.headers.authorization})
             .then(data => {
                 res.status(data.status).send();
                 resolve();
