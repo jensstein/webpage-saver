@@ -14,7 +14,7 @@ export default async function handler(req, res) {
                         res.status(400).json(error.response.data);
                     }
                 } else {
-                    console.error("Error when associating user with app: ", error);
+                    console.error("Error when associating user with app: ${error}");
                     res.status(500).json({message: "Unable to associate user with app"});
                 }
                 reject();

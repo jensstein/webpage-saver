@@ -4,6 +4,9 @@ import jsonwebtoken from "jsonwebtoken";
 import { get_cookie, get_jwt } from "../../../../helpers/cookies.js";
 import { get_userinfo } from "../../../../helpers/userinfo.js";
 
+// TODO: chrome support is currently untested.
+const BROWSER_REDIRECTS = ["allizom.org", "chromiumapp.org", "dk.jens.webpagesaver://token-callback"];
+
 // In order to transmit values from the first authorization call to this
 // callback a short-lived cookie is set.
 function get_auth_data(cookies) {
@@ -21,6 +24,17 @@ function get_auth_data(cookies) {
     }
 }
 
+function parse_redirect_uri(redirect_uri) {
+    if(BROWSER_REDIRECTS.some(r => redirect_uri.includes(r))) {
+        const redirect_uri_ = new URL(redirect_uri);
+        const host = redirect_uri_.hostname;
+        for(let r of BROWSER_REDIRECTS) {
+            return host.substring(host.length - r.length);
+        }
+    }
+    return redirect_uri;
+}
+
 // Here I validate that the cookie set during the first authorization call
 // contains the expected values.
 async function validate_auth_data(auth_data) {
@@ -31,12 +45,7 @@ async function validate_auth_data(auth_data) {
             }
         }
         try {
-            const redirect_uri = new URL(auth_data["redirect_uri"]);
-            const host = redirect_uri.hostname;
-            // TODO: chrome support is currently untested.
-            if(host.substring(host.length - 11) !== "allizom.org" && host.substring(host.length - 15) !== "chromiumapp.org") {
-                reject(`Invalid redirect uri: ${auth_data["redirect_uri"]}`);
-            }
+            let redirect_uri = parse_redirect_uri(auth_data["redirect_uri"]);
         } catch (error) {
             reject(`Unable to parse redirect_uri ${auth_data["redirect_uri"]}: ${error}`);
         }
@@ -61,7 +70,7 @@ function get_code(url) {
                 // authorization call matches the one supplied here in the
                 // callback.
                 if(auth_data["state"] !== state) {
-                    reject("Saved state doesn't match provided state");
+                    reject(`Saved state (${auth_data["state"]}) doesn't match provided state (${state})`);
                 }
                 resolve({code, auth_data});
             }
@@ -133,7 +142,7 @@ function associate_token_sub_and_user(jwt, client_id, app_host) {
                     {headers: {"authorization": `bearer ${jwt}`}})
                 .then(() => resolve({access_token, refresh_token}))
                 .catch(error => {
-                    console.error("Error associating user with oauth2 access token", error);
+                    console.error(`Error associating user with oauth2 access token: ${error}`);
                     reject("Error associating user with oauth2 access token");
                 });
         });
@@ -167,7 +176,7 @@ function get_token(jwt) {
                     // it has to be in the query parameters it seems. But
                     // the redirect_uri a firefox extension supplies isn't
                     // an address for anything on the internet so it's
-                    // probably safe to to it like this (other oauth2
+                    // probably safe to do it like this (other oauth2
                     // solutions also choose this strategy).
                     // https://faqs.ably.com/is-it-secure-to-send-the-access_token-as-part-of-the-websocket-url-query-params
                     .then(tokens => {
@@ -180,7 +189,7 @@ function get_token(jwt) {
                             error_data = JSON.stringify(error.response.data);
                             console.error(`Error when querying ${base_url}`, error.response.data);
                         } else {
-                            console.error(`Error when querying ${base_url}`, error);
+                            console.error(`Error when querying ${base_url}: ${error}`);
                         }
                         reject(`Error when querying ${base_url}: ${error_data}`);
                     });
@@ -198,10 +207,10 @@ export default async function handler(req, res) {
         .then(get_code(req.url))
         .then(get_token(jwt))
         .then(redirect_uri => {
-            res.redirect(301, redirect_uri);
+            res.redirect(redirect_uri, 308);
         })
         .catch(error => {
-            console.log(`Error during oauth2 callback: ${error}`);
-            res.status(401).send();
+            console.error(`Error during oauth2 callback: ${error}`);
+            res.status(401).json({"message": "error during oauth2 callback"});
         })
 }
