@@ -1,27 +1,35 @@
 import axios from "axios";
 import jsonwebtoken from "jsonwebtoken";
 
-import { get_cookie, get_jwt } from "../../../../helpers/cookies.js";
-import { get_userinfo } from "../../../../helpers/userinfo.js";
+import { get_cookie, get_jwt } from "../../../../../helpers/cookies.js";
+import { get_userinfo } from "../../../../../helpers/userinfo.js";
+
+import { associate_app_to_user } from "../../../../../requests/associate-app-to-user.js";
 
 // TODO: chrome support is currently untested.
 const BROWSER_REDIRECTS = ["allizom.org", "chromiumapp.org", "dk.jens.webpagesaver://token-callback"];
 
 // In order to transmit values from the first authorization call to this
 // callback a short-lived cookie is set.
-function get_auth_data(cookies) {
-    return async userinfo => {
-        return new Promise((resolve, reject) => {
-            const { username } = userinfo;
-            const cookie_name = `${username}-auth-data`;
-            const auth_data_cookie = cookies[cookie_name];
-            if(auth_data_cookie === undefined || auth_data_cookie === null) {
-                reject("Missing auth data");
-            }
-            const auth_data = JSON.parse(auth_data_cookie);
-            resolve(auth_data);
-        })
-    }
+async function get_auth_data(cookies) {
+    return new Promise((resolve, reject) => {
+        const auth_data_cookie = cookies;
+        if(auth_data_cookie === undefined || auth_data_cookie === null) {
+            reject("Missing auth data");
+        }
+        const auth_data = JSON.parse(auth_data_cookie.value);
+        resolve(auth_data);
+    })
+}
+
+async function get_cookie_for_user(userinfo) {
+    return new Promise((resolve, reject) => {
+        const { username } = userinfo;
+        const cookie_name = `${username}-auth-data`;
+        get_cookie(cookie_name).then(cookie => {
+            resolve(cookie)
+        });
+    });
 }
 
 function parse_redirect_uri(redirect_uri) {
@@ -59,7 +67,7 @@ function get_code(url) {
             // A WHATWG URL cannot be constructed without a base. If the
             // provided url is relative and a base is not supplied, the
             // constructor throws an error.
-            const _url = new URL(url, "http://localhost");
+            const _url = new URL(url);
             const params = _url.searchParams;
             if((!"code" in params) || (!"state" in params)) {
                 reject(`Invalid redirect params: ${params}`);
@@ -137,9 +145,7 @@ function associate_token_sub_and_user(jwt, client_id, app_host) {
     return async token_data => {
         const {access_token, decoded_token, refresh_token} = token_data;
         return new Promise((resolve, reject) => {
-            axios.post(`${process.env.SERVER_BASE_URL}/api/associate-app-to-user`,
-                    {"sub": decoded_token.sub, "client_id": client_id, "app_host": app_host},
-                    {headers: {"authorization": `bearer ${jwt}`}})
+            associate_app_to_user(decoded_token.sub, jwt, client_id, app_host)
                 .then(() => resolve({access_token, refresh_token}))
                 .catch(error => {
                     console.error(`Error associating user with oauth2 access token: ${error}`);
@@ -156,7 +162,7 @@ function get_token(jwt) {
             const token_data = {
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": `${process.env.SERVER_BASE_URL}/auth/oauth2/callback`,
+                "redirect_uri": `${auth_data["redirect_uri"]}/auth/oauth2/callback`,
                 "client_id": auth_data["client_id"],
                 "code_verifier": auth_data["verifier"],
             }
@@ -198,19 +204,19 @@ function get_token(jwt) {
     }
 }
 
-export default async function handler(req, res) {
-    const jwt = get_jwt({req});
-    const cookies = get_cookie({req});
+export async function GET(request) {
+    const jwt = await get_jwt();
     return get_userinfo(jwt)
-        .then(get_auth_data(cookies))
+        .then(get_cookie_for_user)
+        .then(get_auth_data)
         .then(validate_auth_data)
-        .then(get_code(req.url))
+        .then(get_code(request.url))
         .then(get_token(jwt))
         .then(redirect_uri => {
-            res.redirect(redirect_uri, 308);
+            return Response.redirect(redirect_uri, 308);
         })
         .catch(error => {
             console.error(`Error during oauth2 callback: ${error}`);
-            res.status(401).json({"message": "error during oauth2 callback"});
+            return new Response(JSON.stringify({"message": "error during oauth2 callback"}), {"headers": {"content-type": "application/json"}, "status": 401});
         })
 }

@@ -1,7 +1,9 @@
+"use client"
+
 import styles from "../styles/WebpageLink.module.css";
 import Link from "next/link";
 
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 
 // Image from next/image cannot be used here since I don't know the domains of all the source urls in advance.
 export default function WebpageLink({href, title, image_url}) {

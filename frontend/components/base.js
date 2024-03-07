@@ -1,18 +1,18 @@
-import "bootstrap/dist/css/bootstrap.css";
-import '../styles/globals.css'
+"use client"
 
-import { useRouter } from "next/router";
-import { createContext, useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 
-import { verify_jwt, logout } from "../requests/auth.js";
+import { logout } from "../requests/auth.js";
+import { verify_jwt } from "../requests/verify-jwt.js";
 
-export const Context = createContext({
-    "authorized": false,
-});
+import { get_jwt } from "../helpers/cookies.js";
 
-function MyApp({ Component, pageProps }) {
+export default function Base({jwt, children}) {
     const router = useRouter();
     const [authorized, setAuthorized] = useState(false);
+
+    const path = usePathname().split("?")[0];
 
     // Be careful of infinite loops here. If no dependencies are set,
     // useEffect will retrigger on any state change which then again
@@ -21,7 +21,6 @@ function MyApp({ Component, pageProps }) {
     // here if you make a mistake.
     // https://dmitripavlutin.com/react-useeffect-infinite-loop/
     useEffect(() => {
-        const path = router.asPath.split("?")[0];
         const remove_jwt = () => {
             logout().then(() => {
                 setAuthorized(false);
@@ -29,8 +28,7 @@ function MyApp({ Component, pageProps }) {
             })
             .catch(_ => console.log("Logout failed"));
         };
-        const {jwt, ignore_authentication} = pageProps;
-        if(authorized) {
+        if(authorized && (jwt !== undefined && jwt !== null)) {
             return;
         } else if(jwt) {
             verify_jwt(jwt).then(is_verified => {
@@ -42,22 +40,19 @@ function MyApp({ Component, pageProps }) {
             }).catch(_ => {
                 remove_jwt();
             })
-        } else if(!ignore_authentication) {
+        } else {
             sendToLogin(path);
         }
-    }, [authorized, pageProps]);
+    }, [authorized, jwt, children]);
 
     function sendToLogin(path) {
         if(path != "/login") {
-            router.push({pathname: "/login", query: {returnUrl: encodeURIComponent(router.asPath)}});
+            const p = `/login?returnUrl=${encodeURIComponent(path)}`;
+            router.push(p);
         }
     }
 
     return (
-        <Context.Provider value={{authorized}}>
-            <Component {...pageProps} />
-        </Context.Provider>
+        <>{children}</>
     )
 }
-
-export default MyApp

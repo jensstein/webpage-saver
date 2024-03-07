@@ -1,31 +1,29 @@
-import nookies from "nookies";
+"use server"
 
-export function set_cookie(request, name, data, max_age = undefined) {
+import { cookies } from "next/headers";
+
+export async function set_cookie(name, data, max_age = undefined) {
     let options = {
         // If path isn't set here then its value depends on which handler sets it which might make it inaccessible to the other pages
         path: "/",
         httpOnly: true,
-        secure: true,
+        secure: process.env.NODE_ENV !== "development",
         sameSite: "Strict",
     };
     if(max_age !== undefined) {
         options["maxAge"] = max_age;
     }
-    nookies.set(request, name, data, options);
+    await cookies().set(name, data, options);
 }
 
-export function get_cookie(request) {
-    return nookies.get(request);
+export async function get_cookie(request) {
+    return cookies().get(request);
 }
 
-export function get_jwt(request) {
-    let {jwt} = nookies.get(request, "jwt");
+export async function get_jwt() {
+    let jwt = await get_cookie("jwt");
     if(jwt === undefined) {
         return null;
     }
-    return jwt;
-}
-
-export function remove_cookie(context, name) {
-    nookies.destroy(context, name, {path: "/"});
+    return jwt.value;
 }

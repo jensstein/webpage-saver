@@ -1,10 +1,11 @@
+"use client"
+
 import styles from "../styles/Sidebar.module.css";
 
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 
-export default function Sidebar({jwt}) {
+export default function Sidebar({jwt, id}) {
     const router = useRouter();
-    const {id} = router.query;
 
     function deleteOnClick(e) {
         e.preventDefault();

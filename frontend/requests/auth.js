@@ -1,5 +1,4 @@
 import axios from "axios";
-import jwt from "jsonwebtoken";
 
 export async function login(username, password) {
     return new Promise((resolve, reject) => {
@@ -21,14 +20,4 @@ export async function logout() {
                 return reject(`Logout failed: ${error}`);
             });
     });
-}
-
-export async function verify_jwt(token) {
-    const decoded = jwt.decode(token);
-    return axios.post("/api/verify-jwt", {username: decoded.sub, "jwt": token})
-        .then(_ => {
-            return true;
-        }).catch(_ => {
-            return false;
-        });
 }

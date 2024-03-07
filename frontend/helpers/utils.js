@@ -21,3 +21,25 @@ export function get_info_from_request_error(error) {
     }
     return info;
 }
+
+export function get_headers_from_request(request) {
+    const headers = new Headers;
+    for (const h of request.headers.entries()) {
+        headers.set(h[0], h[1]);
+    }
+    return headers;
+}
+
+class Headers {
+    constructor() {
+        this.headers = {};
+    }
+
+    get(key) {
+        return this.headers[key.toLowerCase()];
+    }
+
+    set(key, value) {
+        this.headers[key.toLowerCase()] = value;
+    }
+}

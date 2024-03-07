@@ -1,3 +1,5 @@
+"use client"
+
 import axios from "axios";
 
 export default function WebpageFetch({jwt, revalidateCallback}) {

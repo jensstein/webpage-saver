@@ -1,5 +1,7 @@
+"use client"
+
 import Link from "next/link";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 
 export default function Header() {
     const router = useRouter();
@@ -7,7 +9,7 @@ export default function Header() {
     function logoutOnSubmit(e) {
         e.preventDefault();
         fetch("/api/logout").then(() => {
-            router.reload(window.location.pathname);
+            router.refresh();
         });
     }
 
