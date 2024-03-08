@@ -10,7 +10,7 @@ export async function POST(request) {
         {username: body.username, password: body.password})
         .then(data => {
             set_cookie("jwt", data.data.jwt).catch(
-                error => console.error(`Error setting cookie: ${error}`);
+                error => console.error(`Error setting cookie: ${error}`)
             );
             return new Response(JSON.stringify(data.data), {"headers": {"content-type": "application/json"}});
         })
