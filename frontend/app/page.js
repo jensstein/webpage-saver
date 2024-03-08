@@ -1,6 +1,3 @@
-"use server"
-
-import Head from 'next/head'
 import { cookies } from "next/headers";
 import Link from "next/link";
 
@@ -15,6 +12,11 @@ import WebpageFetch from "../components/webpage-fetch.js";
 
 import { revalidateCallback } from "../helpers/revalidate.js";
 import {get_jwt} from "../helpers/cookies.js";
+
+export const metadata = {
+    "title": "Webpage saver",
+    "description": "Show stored webpages",
+}
 
 export default async function Home() {
     const jwt = await get_jwt();
@@ -33,10 +35,6 @@ export default async function Home() {
         });
         return (
             <div className={styles.container}>
-                <Head>
-                  <title>Webpage saver</title>
-                  <meta name="description" content="Show stored webpages"/>
-                </Head>
                 <main>
                     <Header/>
                     <h1 className={styles.title}>Article saver</h1>
