@@ -37,7 +37,7 @@ export default async function Home() {
             <div className={styles.container}>
                 <main>
                     <Header/>
-                    <h1 className={styles.title}>Article saver</h1>
+                    <h1 className={styles.title + " text-5xl content-center"}>Article saver</h1>
                 </main>
                 <WebpageFetch jwt={jwt} revalidateCallback={revalidateCallback}/>
                 <LinksContainer>

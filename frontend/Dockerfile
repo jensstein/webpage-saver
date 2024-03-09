@@ -10,13 +10,15 @@ COPY --chown=node package.json package.json
 COPY --chown=node yarn.lock yarn.lock
 COPY --chown=node app app
 COPY --chown=node middleware.js middleware.js
+COPY --chown=node tailwind.config.js tailwind.config.js
+COPY --chown=node postcss.config.js postcss.config.js
 COPY --chown=node public public
 COPY --chown=node requests requests
 COPY --chown=node styles styles
 
 ENV YARN_CACHE_FOLDER=/tmp/yarn-cache
 
-RUN yarn install --production --frozen-lockfile && \
+RUN yarn install --frozen-lockfile && \
 	yarn build && \
     rm -rf /tmp/yarn-cache
 

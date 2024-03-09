@@ -25,7 +25,7 @@ export default async function ShowStoredWebpage({params}) {
                 <div id={styles.wrapper}>
                     <Sidebar jwt={jwt} id={id}/>
                     <div className={styles.webpage_container}>
-                        <h1>{data.title}</h1>
+                        <h1 className="text-3xl font-semibold">{data.title}</h1>
                         <div id={styles.content} dangerouslySetInnerHTML={{__html: data.content}}/>
                     </div>
                 </div>
