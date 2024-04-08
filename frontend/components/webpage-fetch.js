@@ -17,16 +17,11 @@ export default function WebpageFetch({jwt, revalidateCallback}) {
     }
 
     return (
-        <>
-            <div>
-                <form onSubmit={submit}>
-                    <div>
-                        <label className="form-label" htmlFor="webpage-url-input">Fetch webpage by url: </label>
-                        <input id="webpage-url-input"/>
-                    </div>
-                </form>
-            </div>
-        </>
+        <form onSubmit={submit}>
+            <fieldset className="w-full space-y-1 dark:text-gray-100">
+                <label htmlFor="webpage-url-input" className="block text-sm font-medium">Fetch webpage by url: </label>
+                <input type="text" name="url" id="webpage-url-input" className="hur pl-5 flex flex-1 border sm:text-sm rounded-r-md focus:ri dark:border-gray-700 dark:text-gray-100 dark:bg-gray-800 focus:ri" />
+            </fieldset>
+        </form>
     )
 }
-
