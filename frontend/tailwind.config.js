@@ -6,7 +6,12 @@ module.exports = {
         "./components/**/*.js",
     ],
     theme: {
-        extend: {},
+        extend: {
+            // https://tailwindcss.com/docs/customizing-colors
+            colors: {
+                "sidebar": "#d1d5c8",
+            }
+        },
     },
     plugins: [
         require('@tailwindcss/forms'),

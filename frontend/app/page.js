@@ -3,7 +3,6 @@ import Link from "next/link";
 
 import styles from '../styles/Home.module.css'
 
-import Header from "../components/header.js";
 import LinksContainer from "../components/links-container.js";
 import LoadingError from "../components/loading-error.js";
 import Loading from "../components/loading.js";
@@ -34,9 +33,8 @@ export default async function Home() {
             )
         });
         return (
-            <div className={styles.container}>
+            <div>
                 <main>
-                    <Header/>
                     <h1 className={styles.title + " text-5xl content-center"}>Article saver</h1>
                 </main>
                 <WebpageFetch jwt={jwt} revalidateCallback={revalidateCallback}/>

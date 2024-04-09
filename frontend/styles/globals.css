@@ -28,3 +28,9 @@ img {
         margin: 0;
     }
 }
+
+iconify-icon {
+   display: inline-block;
+   width: 1em;
+   height: 1em;
+}

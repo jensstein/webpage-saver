@@ -8,6 +8,8 @@ import { verify_jwt } from "../requests/verify-jwt.js";
 
 import { get_jwt } from "../helpers/cookies.js";
 
+import Sidebar from "../components/sidebar.js";
+
 export default function Base({jwt, children}) {
     const router = useRouter();
     const [authorized, setAuthorized] = useState(false);
@@ -53,6 +55,13 @@ export default function Base({jwt, children}) {
     }
 
     return (
-        <>{children}</>
+        <>
+            <div className="">
+                <Sidebar jwt={jwt} />
+                <div className="relative left-14">
+                    {children}
+                </div>
+            </div>
+        </>
     )
 }

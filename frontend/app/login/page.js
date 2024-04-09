@@ -2,7 +2,6 @@
 
 import styles from '../../styles/Login.module.css'
 
-import Header from "../../components/header.js";
 import { login } from "../../requests/auth.js";
 
 import { useRouter, useSearchParams } from "next/navigation";
@@ -41,24 +40,21 @@ export default function Login() {
         });
     }
     return (
-        <>
-            <Header/>
-            <div className="container py-5 h-100">
-                <div className="row d-flex justify-content-center align-items-center h-100">
-                    <h2 className="mb-2">Login</h2>
-                    <form onSubmit={onSubmit} className={styles.login_box}>
-                        <div className="mb-3">
-                            <label className="form-label" htmlFor="username-input">username</label>
-                            <input id="username-input" className="form-control" name="username" type="text"/>
-                        </div>
-                        <div className="mb-3">
-                            <label className="form-label" htmlFor="password-input">password</label>
-                            <input id="password-input" className="form-control" name="password" type="password"/>
-                        </div>
-                        <button className="btn btn-primary">Login</button>
-                    </form>
-                </div>
+        <div className="container py-5 h-100">
+            <div className="row d-flex justify-content-center align-items-center h-100">
+                <h2 className="mb-2">Login</h2>
+                <form onSubmit={onSubmit} className={styles.login_box}>
+                    <div className="mb-3">
+                        <label className="form-label" htmlFor="username-input">username</label>
+                        <input id="username-input" className="form-control" name="username" type="text"/>
+                    </div>
+                    <div className="mb-3">
+                        <label className="form-label" htmlFor="password-input">password</label>
+                        <input id="password-input" className="form-control" name="password" type="password"/>
+                    </div>
+                    <button className="btn btn-primary">Login</button>
+                </form>
             </div>
-        </>
+        </div>
     )
 }
