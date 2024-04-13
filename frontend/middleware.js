@@ -10,22 +10,23 @@ export async function middleware(request) {
     // NextJS sets the host of the request to be the hostname the next server
     // was started with, not the hostname that the user entered into their browser.
     // https://github.com/vercel/next.js/issues/37536
-    const host = request.headers.get("host");
-    if(host !== undefined && host !== null) {
-        url.host = host;
-    }
+    const host = request.headers.get("host") || url.host;
+    // https://stackoverflow.com/a/65892809
+    const protocol = request.headers.get("X-Forwarded-Proto") || "http";
     const searchParams = new URL(request.url).searchParams;
     const returnUrl = searchParams.get("returnUrl") || encodeURIComponent("/");
     if(jwt === undefined || jwt === null) {
         if(request.nextUrl.pathname !== "/login") {
-            return NextResponse.redirect(new URL(`/login?returnUrl=${encodeURIComponent(url)}`, url.origin));
+            return NextResponse.redirect(new URL(`/login?returnUrl=${encodeURIComponent(url)}`,
+                `${protocol}://${host}`));
         }
     } else {
         const verified = await verify_jwt(jwt);
         if(verified && request.nextUrl.pathname === "/login") {
             return NextResponse.redirect(returnUrl);
         } else if(!verified) {
-            return NextResponse.redirect(new URL(`/login?returnUrl=${encodeURIComponent(url)}`, url.origin));
+            return NextResponse.redirect(new URL(`/login?returnUrl=${encodeURIComponent(url)}`,
+                `${protocol}://${host}`));
         }
     }
 }
