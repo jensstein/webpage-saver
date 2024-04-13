@@ -1,4 +1,4 @@
-FROM node:alpine
+FROM node:21-bookworm-slim
 
 USER node
 WORKDIR /home/node
@@ -17,8 +17,11 @@ COPY --chown=node requests requests
 COPY --chown=node styles styles
 
 ENV YARN_CACHE_FOLDER=/tmp/yarn-cache
+ENV PATH=/home/node/.local/bin:$PATH
 
-RUN yarn install --frozen-lockfile && \
+RUN mkdir -p $HOME/.local/bin && \
+	corepack enable --install-directory /home/node/.local/bin && \
+	yarn install --immutable && \
 	yarn build && \
     rm -rf /tmp/yarn-cache
 
