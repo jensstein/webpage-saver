@@ -7,7 +7,7 @@ import { useRouter, usePathname, useParams } from "next/navigation";
 import { delete_page } from "../requests/delete-page.js";
 import { revalidateCallback } from "../helpers/revalidate.js";
 
-export default function Sidebar({jwt, children}) {
+export default function Sidebar({jwt}) {
     const router = useRouter();
     const pathname = usePathname();
     const {id} = useParams();
@@ -22,7 +22,7 @@ export default function Sidebar({jwt, children}) {
                 } else {
                     alert("Error deleting webpage");
                 }
-            }).catch(_ => {
+            }).catch(() => {
                 alert("Error deleting webpage");
             });
         } else {

@@ -9,7 +9,7 @@ export default function Oauth2Connect() {
     const searchParams = useSearchParams();
     const router = useRouter();
     useEffect(() => {
-        get_jwt().then(result => {
+        get_jwt().then(() => {
             const redirect_uri = searchParams.get("redirect_uri")
             const app_host = searchParams.get("app_host");
             let url = "/api/auth/oauth2/authorize";

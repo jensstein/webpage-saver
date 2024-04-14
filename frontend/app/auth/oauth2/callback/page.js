@@ -5,14 +5,14 @@ import { useEffect, useState } from "react";
 
 import { get_jwt } from "../../../../helpers/cookies.js";
 
-export default function Oauth2Callback(props) {
+export default function Oauth2Callback() {
     const [first_run, set_first_run] = useState(true);
     const path = usePathname().split("?")[0];
     const searchParams = useSearchParams();
 
     const router = useRouter();
     useEffect(() => {
-        get_jwt().then(result => {
+        get_jwt().then(() => {
             // This is a hack to get access to the correct cookies. When you
             // get to a page from an off-site redirect I don't seem to have
             // access to the jwt cookie. Reloading the page gets that

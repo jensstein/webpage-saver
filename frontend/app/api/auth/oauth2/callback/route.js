@@ -23,7 +23,7 @@ async function get_auth_data(cookies) {
 }
 
 async function get_cookie_for_user(userinfo) {
-    return new Promise((resolve, reject) => {
+    return new Promise(resolve => {
         const { username } = userinfo;
         const cookie_name = `${username}-auth-data`;
         get_cookie(cookie_name).then(cookie => {
@@ -53,7 +53,7 @@ async function validate_auth_data(auth_data) {
             }
         }
         try {
-            let redirect_uri = parse_redirect_uri(auth_data["redirect_uri"]);
+            parse_redirect_uri(auth_data["redirect_uri"]);
         } catch (error) {
             reject(`Unable to parse redirect_uri ${auth_data["redirect_uri"]}: ${error}`);
         }
@@ -69,7 +69,7 @@ function get_code(url) {
             // constructor throws an error.
             const _url = new URL(url);
             const params = _url.searchParams;
-            if((!"code" in params) || (!"state" in params)) {
+            if(!("code" in params) || !("state" in params)) {
                 reject(`Invalid redirect params: ${params}`);
             } else {
                 const code = params.get("code");

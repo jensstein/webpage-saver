@@ -6,8 +6,6 @@ import { useState, useEffect } from "react";
 import { logout } from "../requests/auth.js";
 import { verify_jwt } from "../requests/verify-jwt.js";
 
-import { get_jwt } from "../helpers/cookies.js";
-
 import Sidebar from "../components/sidebar.js";
 
 export default function Base({jwt, children}) {
@@ -28,7 +26,7 @@ export default function Base({jwt, children}) {
                 setAuthorized(false);
                 sendToLogin(path);
             })
-            .catch(_ => console.log("Logout failed"));
+            .catch(() => console.log("Logout failed"));
         };
         if(authorized && (jwt !== undefined && jwt !== null)) {
             return;
@@ -39,7 +37,7 @@ export default function Base({jwt, children}) {
                 } else {
                     setAuthorized(true);
                 }
-            }).catch(_ => {
+            }).catch(() => {
                 remove_jwt();
             })
         } else {

@@ -7,7 +7,7 @@ export default function WebpageFetch({jwt, revalidateCallback}) {
         e.preventDefault();
         const url = e.target.elements["webpage-url-input"].value;
         axios.post("/api/fetch", {url}, {headers: {"Authorization": `bearer ${jwt}`}})
-            .then(data => {
+            .then(() => {
                 revalidateCallback();
             })
             .catch(error => {

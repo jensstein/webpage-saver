@@ -1,6 +1,5 @@
 "use server"
 
-import axios from "axios";
 import crypto from "crypto";
 
 import { set_cookie, get_jwt } from "../../../../../helpers/cookies.js";

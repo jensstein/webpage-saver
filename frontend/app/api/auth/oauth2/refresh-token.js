@@ -1,11 +1,11 @@
 import axios from "axios";
 
 function validate_token_response(response) {
-    if(response["data"] === undefined || response["data"] === null) {
-        console.error("Malformed refresh token response", response);
-        reject("Malformed refresh token response");
-    }
     return new Promise((resolve, reject) => {
+        if(response["data"] === undefined || response["data"] === null) {
+            console.error("Malformed refresh token response", response);
+            reject("Malformed refresh token response");
+        }
         for(const attribute of ["access_token", "refresh_token"]) {
             if(!(attribute in response["data"])) {
                 reject(`Missing ${attribute} from token response`);

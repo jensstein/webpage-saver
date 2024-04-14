@@ -31,7 +31,7 @@ export default function Login() {
         e.preventDefault();
         const username = e.target.elements.username.value;
         const password = e.target.elements.password.value;
-        login(username, password).then(data => {
+        login(username, password).then(() => {
             router.push(decodeURIComponent(searchParams.get("returnUrl") || '/'));
         }).catch(error => {
             console.log("Error on login: ", error);

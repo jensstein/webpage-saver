@@ -22,7 +22,7 @@ export async function POST(request) {
     }
     return axios.post(`${process.env.BACKEND_URL}/api/fetch`,
         post_data, {"headers": post_headers})
-        .then(data => {
+        .then(() => {
             return new Response("", {"status": 200});
         })
         .catch(error => {

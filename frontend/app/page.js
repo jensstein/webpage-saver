@@ -1,11 +1,7 @@
-import { cookies } from "next/headers";
-import Link from "next/link";
-
 import styles from '../styles/Home.module.css'
 
 import LinksContainer from "../components/links-container.js";
 import LoadingError from "../components/loading-error.js";
-import Loading from "../components/loading.js";
 import WebpageLink from "../components/webpage-link.js";
 import WebpageFetch from "../components/webpage-fetch.js";
 

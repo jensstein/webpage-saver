@@ -3,8 +3,6 @@
 import styles from "../../../styles/ShowStoredWebpage.module.css";
 
 import LoadingError from "../../../components/loading-error.js";
-import Loading from "../../../components/loading.js";
-import Sidebar from "../../../components/sidebar.js";
 
 import { get_jwt } from "../../../helpers/cookies.js";
 
