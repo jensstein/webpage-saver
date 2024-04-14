@@ -1,6 +1,5 @@
 "use client"
 
-import styles from "../styles/WebpageLink.module.css";
 import Link from "next/link";
 
 import { useRouter } from "next/navigation";
@@ -20,9 +19,9 @@ export default function WebpageLink({href, title, image_url}) {
     return (
         <>
             <div onClick={onClick}>
-                <div className={styles.box + " border rounded border-2"}>
-                    <img className={styles.thumbnail} src={image_url}/>
-                    <Link href={href}><p className={styles.link_title}>{title}</p></Link>
+                <div className="border-solid rounded border-2 flex flex-col text-center justify-center items-center h-60">
+                    <img className="h-20 w-auto" src={image_url}/>
+                    <Link href={href}><p className="font-light text-lg">{title}</p></Link>
                 </div>
             </div>
         </>
