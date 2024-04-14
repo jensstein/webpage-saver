@@ -963,7 +963,6 @@ __metadata:
     postcss: "npm:^8.4.35"
     react: "npm:^18.2.0"
     react-dom: "npm:^18.2.0"
-    swr: "npm:^1.1.0"
     tailwindcss: "npm:^3.4.1"
   languageName: unknown
   linkType: soft
@@ -4270,15 +4269,6 @@ __metadata:
   version: 1.0.0
   resolution: "supports-preserve-symlinks-flag@npm:1.0.0"
   checksum: 10c0/6c4032340701a9950865f7ae8ef38578d8d7053f5e10518076e6554a9381fa91bd9c6850193695c141f32b21f979c985db07265a758867bac95de05f7d8aeb39
-  languageName: node
-  linkType: hard
-
-"swr@npm:^1.1.0":
-  version: 1.3.0
-  resolution: "swr@npm:1.3.0"
-  peerDependencies:
-    react: ^16.11.0 || ^17.0.0 || ^18.0.0
-  checksum: 10c0/a02b3dd621e5117320ad45788fb407f60301985edb5fa4197f1b95e28cbe8b3bd093e3cb9a6002102f8c12b40a85941ee525f2b47273366870435aecd61d0e7b
   languageName: node
   linkType: hard
 
