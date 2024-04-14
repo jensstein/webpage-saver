@@ -966,7 +966,7 @@ __metadata:
     axios: "npm:^1.6.8"
     eslint: "npm:7.32.0"
     eslint-config-next: "npm:^14.1.0"
-    jsonwebtoken: "npm:^8.5.1"
+    jsonwebtoken: "npm:^9.0.2"
     next: "npm:^14.1.0"
     postcss: "npm:^8.4.35"
     react: "npm:^18.2.0"
@@ -2735,9 +2735,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jsonwebtoken@npm:^8.5.1":
-  version: 8.5.1
-  resolution: "jsonwebtoken@npm:8.5.1"
+"jsonwebtoken@npm:^9.0.2":
+  version: 9.0.2
+  resolution: "jsonwebtoken@npm:9.0.2"
   dependencies:
     jws: "npm:^3.2.2"
     lodash.includes: "npm:^4.3.0"
@@ -2748,8 +2748,8 @@ __metadata:
     lodash.isstring: "npm:^4.0.1"
     lodash.once: "npm:^4.0.0"
     ms: "npm:^2.1.1"
-    semver: "npm:^5.6.0"
-  checksum: 10c0/c5ad937b6fa23a230efa8ed8ca3c0da8ebfdd377bafc3e8432a11b03ef90e733400a00b26c0dfee47db44a2e64b88b154b57e9926a92990f98dd25aaed15006e
+    semver: "npm:^7.5.4"
+  checksum: 10c0/d287a29814895e866db2e5a0209ce730cbc158441a0e5a70d5e940eb0d28ab7498c6bf45029cc8b479639bca94056e9a7f254e2cdb92a2f5750c7f358657a131
   languageName: node
   linkType: hard
 
@@ -3935,15 +3935,6 @@ __metadata:
   dependencies:
     loose-envify: "npm:^1.1.0"
   checksum: 10c0/b777f7ca0115e6d93e126ac490dbd82642d14983b3079f58f35519d992fa46260be7d6e6cede433a92db70306310c6f5f06e144f0e40c484199e09c1f7be53dd
-  languageName: node
-  linkType: hard
-
-"semver@npm:^5.6.0":
-  version: 5.7.1
-  resolution: "semver@npm:5.7.1"
-  bin:
-    semver: ./bin/semver
-  checksum: 10c0/d4884f2aeca28bff35d0bd40ff0a9b2dfc4b36a883bf0ea5dc15d10d9a01bdc9041035b05f825d4b5ac8a56e490703dbf0d986d054de82cc5e9bad3f02ca6e00
   languageName: node
   linkType: hard
 
