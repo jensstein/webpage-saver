@@ -959,7 +959,6 @@ __metadata:
     eslint-config-next: "npm:^14.1.0"
     jsonwebtoken: "npm:^8.5.1"
     next: "npm:^14.1.0"
-    nookies: "npm:^2.5.2"
     postcss: "npm:^8.4.35"
     react: "npm:^18.2.0"
     react-dom: "npm:^18.2.0"
@@ -1010,13 +1009,6 @@ __metadata:
   version: 0.0.1
   resolution: "concat-map@npm:0.0.1"
   checksum: 10c0/c996b1cfdf95b6c90fee4dae37e332c8b6eb7d106430c17d538034c0ad9a1630cb194d2ab37293b1bdd4d779494beee7786d586a50bd9376fd6f7bcc2bd4c98f
-  languageName: node
-  linkType: hard
-
-"cookie@npm:^0.4.1":
-  version: 0.4.2
-  resolution: "cookie@npm:0.4.2"
-  checksum: 10c0/beab41fbd7c20175e3a2799ba948c1dcc71ef69f23fe14eeeff59fc09f50c517b0f77098db87dbb4c55da802f9d86ee86cdc1cd3efd87760341551838d53fca2
   languageName: node
   linkType: hard
 
@@ -3198,16 +3190,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nookies@npm:^2.5.2":
-  version: 2.5.2
-  resolution: "nookies@npm:2.5.2"
-  dependencies:
-    cookie: "npm:^0.4.1"
-    set-cookie-parser: "npm:^2.4.6"
-  checksum: 10c0/e44d65022f4bc8e7135db8c19373d278ae4bbaf093e6a537e109a050c603d13d6538431e674e33a43715dd502220c45dee0cb86253695c7040352298feccb3e2
-  languageName: node
-  linkType: hard
-
 "nopt@npm:^7.0.0":
   version: 7.2.0
   resolution: "nopt@npm:7.2.0"
@@ -3934,13 +3916,6 @@ __metadata:
   bin:
     semver: bin/semver.js
   checksum: 10c0/fbfe717094ace0aa8d6332d7ef5ce727259815bd8d8815700853f4faf23aacbd7192522f0dc5af6df52ef4fa85a355ebd2f5d39f554bd028200d6cf481ab9b53
-  languageName: node
-  linkType: hard
-
-"set-cookie-parser@npm:^2.4.6":
-  version: 2.5.0
-  resolution: "set-cookie-parser@npm:2.5.0"
-  checksum: 10c0/dae765c1d21619aee094d00c5fa890a07ca104f4f53c95f838442c403829ba7364b0e9a0479a026e71d35575cfba7dcff88e05ce1e0cc714c8e668b30bef8e77
   languageName: node
   linkType: hard
 
