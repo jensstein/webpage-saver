@@ -1,7 +1,5 @@
 "use client"
 
-import styles from '../../styles/Login.module.css'
-
 import { login } from "../../requests/auth.js";
 
 import { useRouter, useSearchParams } from "next/navigation";
@@ -39,21 +37,24 @@ export default function Login() {
             console.log("Error on login: ", error);
         });
     }
+    // Inspired by https://tailwindcomponents.com/component/login-form-31
     return (
-        <div className="container py-5 h-100">
-            <div className="row d-flex justify-content-center align-items-center h-100">
-                <h2 className="mb-2">Login</h2>
-                <form onSubmit={onSubmit} className={styles.login_box}>
-                    <div className="mb-3">
-                        <label className="form-label" htmlFor="username-input">username</label>
-                        <input id="username-input" className="form-control" name="username" type="text"/>
-                    </div>
-                    <div className="mb-3">
-                        <label className="form-label" htmlFor="password-input">password</label>
-                        <input id="password-input" className="form-control" name="password" type="password"/>
-                    </div>
-                    <button className="btn btn-primary">Login</button>
-                </form>
+        <div className="grid h-screen place-items-center">
+            <div className="bg-white p-8 rounded shadow-md max-w-lg w-full mx-auto">
+                <div className="grid grid-cols-1 gap-4">
+                    <h2 className="mb-2">Login</h2>
+                    <form onSubmit={onSubmit} className="max-w-sm">
+                        <div className="mb-3">
+                            <label className="block text-sm font-medium text-gray-700" htmlFor="username-input">username</label>
+                            <input id="username-input" className="mt-1 p-2 w-full border rounded-md" name="username" type="text"/>
+                        </div>
+                        <div className="mb-3">
+                            <label className="block text-sm font-medium text-gray-700" htmlFor="password-input">password</label>
+                            <input id="password-input" className="mt-1 p-2 w-full border rounded-md" name="password" type="password"/>
+                        </div>
+                        <button className="btn-primary">Login</button>
+                    </form>
+                </div>
             </div>
         </div>
     )
