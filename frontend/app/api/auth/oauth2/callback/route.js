@@ -69,7 +69,7 @@ function get_code(url) {
             // constructor throws an error.
             const _url = new URL(url);
             const params = _url.searchParams;
-            if(!("code" in params) || !("state" in params)) {
+            if(!params.has("code") || !params.has("state")) {
                 reject(`Invalid redirect params: ${params}`);
             } else {
                 const code = params.get("code");
