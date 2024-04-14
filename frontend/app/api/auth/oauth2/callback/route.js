@@ -155,14 +155,14 @@ function associate_token_sub_and_user(jwt, client_id, app_host) {
     }
 }
 
-function get_token(jwt) {
+function get_token(jwt, host) {
     return async code_data => {
         const {code, auth_data} = code_data;
         return new Promise((resolve, reject) => {
             const token_data = {
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": `${auth_data["redirect_uri"]}/auth/oauth2/callback`,
+                "redirect_uri": `${host}/auth/oauth2/callback`,
                 "client_id": auth_data["client_id"],
                 "code_verifier": auth_data["verifier"],
             }
@@ -205,13 +205,17 @@ function get_token(jwt) {
 }
 
 export async function GET(request) {
+    const searchParams = new URL(request.url).searchParams;
+    const protocol = request.headers.get("X-Forwarded-Proto") || "http";
+    const host = `${protocol}://${request.headers.get("host")}`;
+
     const jwt = await get_jwt();
     return get_userinfo(jwt)
         .then(get_cookie_for_user)
         .then(get_auth_data)
         .then(validate_auth_data)
         .then(get_code(request.url))
-        .then(get_token(jwt))
+        .then(get_token(jwt, host))
         .then(redirect_uri => {
             return Response.redirect(redirect_uri, 308);
         })

@@ -24,6 +24,8 @@ export async function GET(request) {
     // TODO: fail early if the redirect uri is not parsable as a URL, e.g. if it's missing the protocol
     const redirect_uri = searchParams.get("redirect_uri")
     const app_host = searchParams.get("app_host");
+    const protocol = request.headers.get("X-Forwarded-Proto") || "http";
+    const host = `${protocol}://${request.headers.get("host")}`;
     const jwt = await get_jwt();
     if(jwt === null || jwt === undefined) {
         console.log("Missing jwt");
@@ -45,7 +47,7 @@ export async function GET(request) {
         await set_cookie(`${username}-auth-data`, JSON.stringify(auth_data), 30);
         const base_url = process.env.OAUTH2_PROVIDER_BASE_URL;
         const challenge = base64URLEncode(sha256(verifier));
-        const own_redirect_uri = `${redirect_uri}/auth/oauth2/callback`
+        const own_redirect_uri = `${host}/auth/oauth2/callback`
         // TODO: I'm not sure what the best method of storing this value is.
         const audience = process.env.OAUTH2_AUDIENCE;
         // Include the `offline_access` scope to get a refresh token:
