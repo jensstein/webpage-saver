@@ -1,4 +1,4 @@
-FROM node:21-bookworm-slim
+FROM node:24-bookworm-slim
 
 USER node
 WORKDIR /home/node
