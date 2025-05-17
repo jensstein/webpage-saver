@@ -13,16 +13,16 @@ export async function set_cookie(name, data, max_age = undefined) {
     if(max_age !== undefined) {
         options["maxAge"] = max_age;
     }
-    await cookies().set(name, data, options);
+    (await cookies()).set(name, data, options);
 }
 
 export async function get_cookie(request) {
-    return cookies().get(request);
+    return (await cookies()).get(request);
 }
 
 export async function get_jwt() {
     let jwt = await get_cookie("jwt");
-    if(jwt === undefined) {
+    if(jwt === undefined || jwt === null || jwt.value === undefined) {
         return null;
     }
     return jwt.value;

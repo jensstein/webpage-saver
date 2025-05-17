@@ -7,7 +7,7 @@ import LoadingError from "../../../components/loading-error.js";
 import { get_jwt } from "../../../helpers/cookies.js";
 
 export default async function ShowStoredWebpage({params}) {
-    const {id} = params;
+    const {id} = await params;
     const jwt = await get_jwt();
     const f = await fetch(`${process.env.BACKEND_URL}/api/webpage/${id}`, {headers: {"authorization": `Bearer ${jwt}`}});
     if(f.status >= 400) {

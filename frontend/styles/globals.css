@@ -1,6 +1,14 @@
+@import "tailwindcss";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@plugin "@tailwindcss/forms";
+
+@theme {
+    --color-sidebar: #d1d5c8;
+}
 
 body {
     padding: 0 2rem;
