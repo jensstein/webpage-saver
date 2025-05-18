@@ -1,15 +1,17 @@
 "use server"
 
+import { cookies } from "next/headers";
 import axios from "axios";
 
 import { set_cookie } from "../../../helpers/cookies.js";
 
 export async function POST(request) {
+    const _cookies = await cookies()
     const body = await request.json();
     return axios.post(`${process.env.BACKEND_URL}/api/login`,
         {username: body.username, password: body.password})
         .then(data => {
-            set_cookie("jwt", data.data.jwt).catch(
+            set_cookie(_cookies, "jwt", data.data.jwt, 3600 * 24, "Lax").catch(
                 error => console.error(`Error setting cookie: ${error}`)
             );
             return new Response(JSON.stringify(data.data), {"headers": {"content-type": "application/json"}});
