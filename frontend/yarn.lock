@@ -1389,6 +1389,7 @@ __metadata:
     eslint-config-next: "npm:>=14.1.0"
     jsonwebtoken: "npm:>=9.0.2"
     next: "npm:>=14.1.0"
+    openid-client: "npm:^6.5.0"
     postcss: "npm:>=8.4.35"
     react: "npm:>=18.2.0"
     react-dom: "npm:>=18.2.0"
@@ -2855,6 +2856,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"jose@npm:^6.0.10":
+  version: 6.0.11
+  resolution: "jose@npm:6.0.11"
+  checksum: 10c0/d290be4532174e7a53730b7fb84c74327531172bd403b196c592b312b73eedb7489949837bfe831fdbd280799bfc5ba778bc807495a73eda08ae6c49414f405a
+  languageName: node
+  linkType: hard
+
 "js-tokens@npm:^3.0.0 || ^4.0.0, js-tokens@npm:^4.0.0":
   version: 4.0.0
   resolution: "js-tokens@npm:4.0.0"
@@ -3398,6 +3406,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"oauth4webapi@npm:^3.5.1":
+  version: 3.5.1
+  resolution: "oauth4webapi@npm:3.5.1"
+  checksum: 10c0/5d57ba4299d61173b28ff0612fdfcc550b02c2ce4afcd1641103960c02af18268b55a70f26d47bbfc956680967c307546284b4a0b1f13845589e247f798ff395
+  languageName: node
+  linkType: hard
+
 "object-assign@npm:^4.1.1":
   version: 4.1.1
   resolution: "object-assign@npm:4.1.1"
@@ -3486,6 +3501,16 @@ __metadata:
   dependencies:
     wrappy: "npm:1"
   checksum: 10c0/5d48aca287dfefabd756621c5dfce5c91a549a93e9fdb7b8246bc4c4790aa2ec17b34a260530474635147aeb631a2dcc8b32c613df0675f96041cbb8244517d0
+  languageName: node
+  linkType: hard
+
+"openid-client@npm:^6.5.0":
+  version: 6.5.0
+  resolution: "openid-client@npm:6.5.0"
+  dependencies:
+    jose: "npm:^6.0.10"
+    oauth4webapi: "npm:^3.5.1"
+  checksum: 10c0/403a1b0d08b5f74d6f715f139ffede1f9a96ca22d59a34c09c8f154159c2e5acf3f396cabc1a7e5fcc93530fc86e6e6d08040df3f42edd3f248ef530445c8651
   languageName: node
   linkType: hard
 
