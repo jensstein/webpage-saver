@@ -8,11 +8,11 @@ export async function middleware(request) {
     const token = await get_jwt();
     if (!request.nextUrl.pathname.startsWith("/login")) {
         if (!token) {
-            return NextResponse.redirect(new URL("/login", request.url));
+            return NextResponse.redirect(new URL(`/login?returnUrl=${request.url}`, request.url));
         }
 
         if (!await verify_jwt(token)) {
-            const response = NextResponse.redirect(new URL("/login", request.url));
+            const response = NextResponse.redirect(new URL(`/login?returnUrl=${request.url}`, request.url));
             response.cookies.delete("jwt");
             return response;
         }
