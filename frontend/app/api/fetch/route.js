@@ -15,12 +15,13 @@ export async function POST(request) {
     if(body.html !== undefined && body.html !== null) {
         post_data["html"] = body.html;
     }
+    const url = new URL(`${process.env.BACKEND_URL}/api/fetch`);
     const post_headers = {"Authorization": headers.get("authorization")};
     const auth_type = searchParams.get("auth-type");
     if(auth_type !== undefined && auth_type !== null) {
-        post_headers["auth-type"] = auth_type;
+        url.searchParams.set("auth-type", auth_type);
     }
-    return axios.post(`${process.env.BACKEND_URL}/api/fetch`,
+    return axios.post(url,
         post_data, {"headers": post_headers})
         .then(() => {
             return new Response("", {"status": 200});
