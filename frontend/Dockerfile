@@ -1,5 +1,9 @@
 FROM node:24-bookworm-slim
 
+RUN apt-get update && \
+	apt-get -y upgrade && \
+	apt-get install -y curl
+
 USER node
 WORKDIR /home/node
 
@@ -14,11 +18,14 @@ COPY --chown=node postcss.config.mjs postcss.config.mjs
 COPY --chown=node public public
 COPY --chown=node requests requests
 COPY --chown=node styles styles
+COPY --chown=node download-fonts.sh download-fonts.sh
 
 ENV YARN_CACHE_FOLDER=/tmp/yarn-cache
 ENV PATH=/home/node/.local/bin:$PATH
 
-RUN mkdir -p $HOME/.local/bin && \
+RUN mkdir -p fonts && \
+	./download-fonts.sh && \
+	mkdir -p $HOME/.local/bin && \
 	corepack enable --install-directory /home/node/.local/bin && \
 	yarn install --immutable && \
 	yarn build && \

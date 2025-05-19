@@ -1,7 +1,10 @@
 services:
-  - postgres:14-alpine
+  - postgres:17-alpine
 
 variables:
+  IMAGE_BACKEND: $CI_REGISTRY_IMAGE/article-server-backend
+  IMAGE_FRONTEND: $CI_REGISTRY_IMAGE/article-server-frontend
+  IMAGE_TAG: $CI_COMMIT_BRANCH-$CI_PIPELINE_ID
   POSTGRES_USER: article-saver
   POSTGRES_DB: article-saver
   POSTGRES_PASSWORD: article-saver
@@ -10,18 +13,18 @@ variables:
 
 stages:
   - test
-  - cargo:test:nightly
-sast:
-  stage: test
+  - build
+  - security-scanning
+
 include:
-- template: Security/SAST.gitlab-ci.yml
+  - template: Jobs/SAST.gitlab-ci.yml
 
 .install_openssl: &install_openssl |
   apt-get update
   apt-get install -y pkg-config libssl-dev
 
 test:cargo:
-  image: rust:1.61-slim-bullseye
+  image: rust:1.86-slim-bullseye
   stage: test
   script:
     - *install_openssl
@@ -30,9 +33,101 @@ test:cargo:
 
 cargo:test:nightly:
   image: rustlang/rust:nightly
-  stage: cargo:test:nightly
+  stage: test
   script:
     - *install_openssl
     - cd backend
     - cargo test
   allow_failure: true
+
+build-container-image-backend:
+  tags:
+    - "k3s"
+  image: fedora:42
+  # When using on of the built-in stages (.pre, build, test, deploy, .post) you
+  # don't need to add it in a `stages` directive before referencing it here.
+  stage: build
+  script:
+    # https://developers.redhat.com/blog/2019/08/14/best-practices-for-running-buildah-in-a-container
+    - dnf install -y podman buildah --exclude container-selinux
+    # In order to build the image for the arm64 platform on a x86_64 host you need to enable binfmt_misc.
+    # https://access.redhat.com/solutions/1985633
+    # This will ensure that the /bin/sh used to run the container instructions
+    # are routed to the correct qemu-user-static binary (qemu-aarch64-static).
+    - mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc
+    - /usr/lib/systemd/systemd-binfmt
+    - buildah build --pull=always --no-cache -t article-server-backend-builder -f backend/Containerfile-builder backend
+    - BUILDER_POD_ID=$(podman create --rm localhost/article-server-backend-builder)
+    - mkdir -p backend/build/linux/{arm64,amd64}
+    - podman cp $BUILDER_POD_ID:/home/app/app/linux/arm64/article_server_rs backend/build/linux/arm64
+    - podman cp $BUILDER_POD_ID:/home/app/app/linux/amd64/article_server_rs backend/build/linux/amd64
+    - podman cp $BUILDER_POD_ID:/etc/passwd backend/build
+    - buildah manifest create article-server
+    - buildah build --pull=always --platform linux/amd64 -t $IMAGE_BACKEND:$IMAGE_TAG-amd64 --manifest article-server -f backend/Containerfile backend
+    - buildah build --pull=always --platform linux/arm64 -t $IMAGE_BACKEND:$IMAGE_TAG-arm64 --manifest article-server -f backend/Containerfile backend
+    - buildah login $CI_REGISTRY_IMAGE -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD
+    - buildah manifest push --all article-server docker://$IMAGE_BACKEND:$IMAGE_TAG
+    - if test $CI_COMMIT_BRANCH = "main"; then \
+          # The semicolons are important here. Otherwise the lines are read as
+          # one line by the shell.
+    -     buildah manifest create article-server-stable; \
+    -     buildah manifest add article-server-stable $IMAGE_BACKEND:$IMAGE_TAG-amd64; \
+    -     buildah manifest add article-server-stable $IMAGE_BACKEND:$IMAGE_TAG-arm64; \
+    -     buildah manifest push article-server-stable docker://$IMAGE_BACKEND:stable; \
+    - fi
+
+build-container-image-frontend:
+  tags:
+    - "k3s"
+  image: fedora:42
+  # When using on of the built-in stages (.pre, build, test, deploy, .post) you
+  # don't need to add it in a `stages` directive before referencing it here.
+  stage: build
+  script:
+    # https://developers.redhat.com/blog/2019/08/14/best-practices-for-running-buildah-in-a-container
+    - dnf install -y buildah --exclude container-selinux
+    # In order to build the image for the arm64 platform on a x86_64 host you need to enable binfmt_misc.
+    # https://access.redhat.com/solutions/1985633
+    # This will ensure that the /bin/sh used to run the container instructions
+    # are routed to the correct qemu-user-static binary (qemu-aarch64-static).
+    - mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc
+    - /usr/lib/systemd/systemd-binfmt
+    - buildah manifest create article-server
+    - buildah build --pull=always --platform linux/amd64 -t $IMAGE_FRONTEND:$IMAGE_TAG-amd64 --manifest article-server -f frontend/Dockerfile frontend
+    - buildah build --pull=always --platform linux/arm64 -t $IMAGE_FRONTEND:$IMAGE_TAG-arm64 --manifest article-server -f frontend/Dockerfile frontend
+    - buildah login $CI_REGISTRY_IMAGE -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD
+    - buildah manifest push --all article-server docker://$IMAGE_FRONTEND:$IMAGE_TAG
+    - if test $CI_COMMIT_BRANCH = "main"; then \
+          # The semicolons are important here. Otherwise the lines are read as
+          # one line by the shell.
+    -     buildah manifest create article-server-stable; \
+    -     buildah manifest add article-server-stable $IMAGE_FRONTEND:$IMAGE_TAG-amd64; \
+    -     buildah manifest add article-server-stable $IMAGE_FRONTEND:$IMAGE_TAG-arm64; \
+    -     buildah manifest push article-server-stable docker://$IMAGE_FRONTEND:stable; \
+    - fi
+
+# https://docs.gitlab.com/user/application_security/container_scanning/
+# https://gitlab.com/adamcohen/container-scanning-multi-image/-/blob/534326fdaa180097746cca0e6adbcac0cad217c1/.gitlab-ci.yml#L44
+# Natively scanning multiple images: https://gitlab.com/groups/gitlab-org/-/epics/3139
+include:
+  - template: Jobs/Container-Scanning.gitlab-ci.yml
+
+# If you don't include the job just called container_scanning it will be
+# included automatically by the template and will result in a warning since
+# it will not be able to find the image to scan automatically.
+container_scanning:
+  stage: security-scanning
+  variables:
+    # https://docs.gitlab.com/ci/runners/configure_runners/#git-strategy
+    GIT_STRATEGY: clone
+    CS_IMAGE: $IMAGE_BACKEND:$IMAGE_TAG
+    CS_DOCKERFILE_PATH: backend/Containerfile
+
+container_scanning_frontend:
+  stage: security-scanning
+  extends: container_scanning
+  variables:
+    # https://docs.gitlab.com/ci/runners/configure_runners/#git-strategy
+    GIT_STRATEGY: clone
+    CS_IMAGE: $IMAGE_FRONTEND:$IMAGE_TAG
+    CS_DOCKERFILE_PATH: frontend/Dockerfile
