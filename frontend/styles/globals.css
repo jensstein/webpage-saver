@@ -7,7 +7,7 @@
 @plugin "@tailwindcss/forms";
 
 @theme {
-    --color-sidebar: #d1d5c8;
+    --color-sidebar: #f0efea;
 }
 
 body {

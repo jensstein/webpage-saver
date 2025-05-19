@@ -40,7 +40,7 @@ export default function Sidebar({jwt}) {
     // https://icon-sets.iconify.design/cil/?keyword=core&category=General
     return (
         <>
-            <nav className="fixed left-0 top-0 bottom-0 z-50 w-14 bg-sidebar flex flex-col h-screen items-center py-6 rounded-tr-4xl rounded-br-4xl gap-y-10">
+            <nav className="fixed left-0 top-0 bottom-0 z-50 w-14 bg-sidebar flex flex-col h-screen items-center py-6 gap-y-10">
                 <Link href="/">
                     <Icon icon="cil:home" className="text-2xl" />
                 </Link>
