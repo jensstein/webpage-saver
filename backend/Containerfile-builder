@@ -1,0 +1,62 @@
+FROM rust:1.86-slim-bullseye AS planner
+
+RUN apt-get update && \
+	apt-get install -y curl clang xz-utils && \
+	useradd -m app
+
+# It seems like you have to use clang to cross-compile the transitive dependency `ring` for aarch64
+# https://github.com/briansmith/ring/issues/1414
+# https://github.com/briansmith/ring/issues/713#issuecomment-717654176
+ENV CC_aarch64_unknown_linux_musl=clang
+
+USER app
+WORKDIR /home/app
+COPY --chown=app Cargo.toml Cargo.toml
+COPY --chown=app Cargo.lock Cargo.lock
+RUN cargo install cargo-chef --locked && \
+	rustup target add x86_64-unknown-linux-gnu && \
+	rustup target add aarch64-unknown-linux-musl && \
+	cargo chef prepare --recipe-path recipe.json
+
+FROM planner AS builder
+COPY --from=planner /etc/passwd /etc/passwd
+
+USER app
+WORKDIR /home/app
+
+COPY --from=planner /home/app/recipe.json recipe.json
+
+# +crt-static in config.toml means that the C runtime is linked statically. This is needed to make the final binary run in the bare scratch image.
+RUN mkdir toolchains && \
+	curl -LO https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64/tarballs/aarch64--musl--stable-2024.05-1.tar.xz && \
+	echo "f847da1195325525f3f07eef045ef40c6b48464a37e0f7fea77360dfe0bc1aa1  aarch64--musl--stable-2024.05-1.tar.xz" | sha256sum -c && \
+	tar -xf aarch64--musl--stable-2024.05-1.tar.xz -C toolchains && \
+	mkdir .cargo && \
+	echo '[target.aarch64-unknown-linux-musl]\n\
+linker = "/home/app/toolchains/aarch64--musl--stable-2024.05-1/bin/aarch64-linux-gcc"\n\
+rustflags = [\n\
+  "-C", "link-arg=-lgcc",\n\
+  "-C", "target-feature=+crt-static",\n\
+]\n\
+[target.x86_64-unknown-linux-gnu]\n\
+rustflags = [\n\
+  "-C", "target-feature=+crt-static",\n\
+]' > .cargo/config.toml
+
+COPY --chown=app test-utils test-utils
+# Fetch dependencies here so that they will be cached in a container
+# layer.
+# https://www.lpalmieri.com/posts/fast-rust-docker-builds/
+# https://github.com/LukeMathWalker/cargo-chef
+RUN cargo chef cook --release --recipe-path recipe.json --target x86_64-unknown-linux-gnu --target aarch64-unknown-linux-musl
+
+COPY --chown=app Cargo.toml Cargo.toml
+COPY --chown=app Cargo.lock Cargo.lock
+COPY --chown=app src src
+COPY --chown=app test-utils test-utils
+COPY --chown=app db db
+
+RUN mkdir -p /home/app/app/linux/amd64 /home/app/app/linux/arm64 && \
+	cargo build --release --target x86_64-unknown-linux-gnu --target aarch64-unknown-linux-musl && \
+	cp target/aarch64-unknown-linux-musl/release/article_server_rs /home/app/app/linux/arm64 && \
+	cp target/x86_64-unknown-linux-gnu/release/article_server_rs /home/app/app/linux/amd64

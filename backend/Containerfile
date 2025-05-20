@@ -1,0 +1,10 @@
+FROM scratch
+ARG TARGETPLATFORM
+
+# Copy the user added in the build step since the scratch image doesn't have any programs to add users with: https://medium.com/@lizrice/non-privileged-containers-based-on-the-scratch-image-a80105d6d341
+COPY build/passwd /etc/passwd
+COPY build/${TARGETPLATFORM}/article_server_rs /usr/local/bin/article_server_rs
+
+USER app
+
+ENTRYPOINT ["/usr/local/bin/article_server_rs"]
